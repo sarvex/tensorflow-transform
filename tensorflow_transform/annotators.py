@@ -197,12 +197,10 @@ def get_asset_annotations(graph: tf.Graph):
   assert len(asset_key_collection) == len(
       asset_filename_collection
   ), 'Length of asset key and filename collections must match.'
-  # Remove scope.
-  annotations = {
+  return {
       os.path.basename(key): os.path.basename(filename)
       for key, filename in zip(asset_key_collection, asset_filename_collection)
   }
-  return annotations
 
 
 def clear_asset_annotations(graph: tf.Graph):

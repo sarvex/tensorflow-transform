@@ -160,18 +160,20 @@ def transform_data(working_dir):
 
   with beam.Pipeline() as pipeline:
     with tft_beam.Context(
-        temp_dir=os.path.join(working_dir, TRANSFORM_TEMP_DIR)):
+            temp_dir=os.path.join(working_dir, TRANSFORM_TEMP_DIR)):
       tfxio_train_data = tfxio.TFExampleRecord(
           file_pattern=os.path.join(working_dir,
-                                    SHUFFLED_TRAIN_DATA_FILEBASE + '*'),
-          schema=SCHEMA)
+                                    f'{SHUFFLED_TRAIN_DATA_FILEBASE}*'),
+          schema=SCHEMA,
+      )
       train_data = (
           pipeline | 'TFXIORead[Train]' >> tfxio_train_data.BeamSource())
 
       tfxio_test_data = tfxio.TFExampleRecord(
           file_pattern=os.path.join(working_dir,
-                                    SHUFFLED_TEST_DATA_FILEBASE + '*'),
-          schema=SCHEMA)
+                                    f'{SHUFFLED_TEST_DATA_FILEBASE}*'),
+          schema=SCHEMA,
+      )
       test_data = (pipeline | 'TFXIORead[Test]' >> tfxio_test_data.BeamSource())
 
       def preprocessing_fn(inputs):
@@ -191,6 +193,9 @@ def transform_data(working_dir):
             REVIEW_WEIGHT_KEY: review_weight,
             LABEL_KEY: inputs[LABEL_KEY]
         }
+
+      # Transformed metadata is not necessary for encoding.
+      # The TFXIO output format is chosen for improved performance.
 
       # Transformed metadata is not necessary for encoding.
       # The TFXIO output format is chosen for improved performance.
@@ -347,8 +352,9 @@ def train_and_evaluate(working_dir,
   # Fit the model using the default optimizer.
   train_input_fn = _make_training_input_fn(
       tf_transform_output,
-      os.path.join(working_dir, TRANSFORMED_TRAIN_DATA_FILEBASE + '*'),
-      batch_size=TRAIN_BATCH_SIZE)
+      os.path.join(working_dir, f'{TRANSFORMED_TRAIN_DATA_FILEBASE}*'),
+      batch_size=TRAIN_BATCH_SIZE,
+  )
   estimator.train(
       input_fn=train_input_fn,
       max_steps=TRAIN_NUM_EPOCHS * num_train_instances / TRAIN_BATCH_SIZE)
@@ -356,8 +362,9 @@ def train_and_evaluate(working_dir,
   # Evaluate model on eval dataset.
   eval_input_fn = _make_training_input_fn(
       tf_transform_output,
-      os.path.join(working_dir, TRANSFORMED_TEST_DATA_FILEBASE + '*'),
-      batch_size=1)
+      os.path.join(working_dir, f'{TRANSFORMED_TEST_DATA_FILEBASE}*'),
+      batch_size=1,
+  )
   result = estimator.evaluate(input_fn=eval_input_fn, steps=num_test_instances)
 
   # Export the model.

@@ -60,13 +60,14 @@ def main(args):
   doc_generator = generate_lib.DocGenerator(
       root_title='TFT-Beam',
       py_modules=[('tft_beam', tft_beam)],
-      code_url_prefix=FLAGS.code_url_prefix + '/beam',
+      code_url_prefix=f'{FLAGS.code_url_prefix}/beam',
       search_hints=FLAGS.search_hints,
       site_path=FLAGS.site_path,
       callbacks=[
           public_api.explicit_package_contents_filter,
-          public_api.local_definitions_filter
-      ])
+          public_api.local_definitions_filter,
+      ],
+  )
 
   doc_generator.build(FLAGS.output_dir)
 

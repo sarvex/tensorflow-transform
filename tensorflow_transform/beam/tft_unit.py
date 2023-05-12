@@ -67,7 +67,7 @@ def canonical_numeric_dtype(dtype):
   elif dtype.is_integer:
     return tf.int64
   else:
-    raise ValueError('Bad dtype {}'.format(dtype))
+    raise ValueError(f'Bad dtype {dtype}')
 
 
 def _format_example_as_numpy_dict(example, feature_shape_dict):
@@ -113,8 +113,8 @@ class TransformTestCase(test_case.TransformTestCase):
       metrics_filter = metrics_filter.with_namespaces(namespaces_list)
     metric = metrics.query(
         metrics_filter)['counters']
-    committed = sum([r.committed for r in metric])
-    attempted = sum([r.attempted for r in metric])
+    committed = sum(r.committed for r in metric)
+    attempted = sum(r.attempted for r in metric)
     self.assertEqual(committed, attempted)
     self.assertEqual(committed, expected_count)
 

@@ -240,7 +240,7 @@ def skip_if_external_environment(reason):
 
 def skip_if_not_tf2(reason):
   major, _, _ = tf.version.VERSION.split('.')
-  if not (int(major) >= 2 and tf2.enabled()) or is_tf_api_version_1():
+  if int(major) < 2 or not tf2.enabled() or is_tf_api_version_1():
     raise unittest.SkipTest(reason)
 
 
@@ -296,8 +296,8 @@ class TransformTestCase(parameterized.TestCase, tf.test.TestCase):
           else:
             self._assertValuesCloseOrEqual(a_value, b_value, msg=msg)
     except (AssertionError, TypeError) as e:
-      message = '{}\nCompared:\n{}\nvs.\n{}'.format(msg, a_data, b_data)
-      e.args = ((e.args[0] + ' : ' + message,) + e.args[1:])
+      message = f'{msg}\nCompared:\n{a_data}\nvs.\n{b_data}'
+      e.args = (f'{e.args[0]} : {message}', ) + e.args[1:]
       raise e
 
   def _assertValuesCloseOrEqual(self, a_value, b_value, msg=None):

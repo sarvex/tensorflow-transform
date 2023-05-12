@@ -13,6 +13,7 @@
 # limitations under the License.
 """Module which allows a pipeilne to define and utilize cached analyzers."""
 
+
 import os
 import pickle
 import re
@@ -28,9 +29,9 @@ from tfx_bsl.types import tfx_namedtuple
 # This should be advanced whenever a non-backwards compatible change is made
 # that affects analyzer cache. For example, changing accumulator format.
 _CACHE_VERSION_NUMBER = 1
-_PYTHON_VERSION = '{}.{}'.format(sys.version_info.major, sys.version_info.minor)
-_CACHE_VERSION = tf.compat.as_bytes('__v{}__{}_'.format(_CACHE_VERSION_NUMBER,
-                                                        _PYTHON_VERSION))
+_PYTHON_VERSION = f'{sys.version_info.major}.{sys.version_info.minor}'
+_CACHE_VERSION = tf.compat.as_bytes(
+    f'__v{_CACHE_VERSION_NUMBER}__{_PYTHON_VERSION}_')
 
 _CACHE_COMPONENT_CHARACTER_REPLACEMENTS = (
     ('/', '-'),
@@ -140,9 +141,8 @@ class _ManifestFile:
 
     if self._file is not None:
       return self._get_manifest_contents(self._file)
-    else:
-      with tf.io.gfile.GFile(self._manifest_path, 'rb') as f:
-        return self._get_manifest_contents(f)
+    with tf.io.gfile.GFile(self._manifest_path, 'rb') as f:
+      return self._get_manifest_contents(f)
 
   def write(self, manifest):
     try:
@@ -208,10 +208,11 @@ class WriteAnalysisCacheToFS(beam.PTransform):
                                                   start_cache_idx):
       path = os.path.join(dataset_key_dir, str(cache_key_idx))
       manifest[cache_entry_key] = cache_key_idx
-      cache_is_written.append(
+      cache_is_written.append((
           cache_pcoll
-          | 'Write[AnalysisIndex{}][CacheKeyIndex{}]'.format(
-              dataset_key_index, cache_key_idx) >> self._sink(path))
+          |
+          (f'Write[AnalysisIndex{dataset_key_index}][CacheKeyIndex{cache_key_idx}]'
+           >> self._sink(path))))
 
     manifest_file.write(manifest)
     return cache_is_written
@@ -221,12 +222,11 @@ class WriteAnalysisCacheToFS(beam.PTransform):
       sorted_dataset_keys_list = sorted(dataset_cache_dict.keys())
     else:
       sorted_dataset_keys_list = self._sorted_dataset_keys
-      missing_keys = set(dataset_cache_dict.keys()).difference(
-          set(sorted_dataset_keys_list))
-      if missing_keys:
+      if missing_keys := set(dataset_cache_dict.keys()).difference(
+          set(sorted_dataset_keys_list)):
         raise ValueError(
-            'The dataset keys in the cache dictionary must be a subset of the '
-            'keys in dataset_keys. Missing {}.'.format(missing_keys))
+            f'The dataset keys in the cache dictionary must be a subset of the keys in dataset_keys. Missing {missing_keys}.'
+        )
     if not all(isinstance(d, DatasetKey) for d in sorted_dataset_keys_list):
       raise ValueError('Expected dataset_keys to be of type DatasetKey')
 
@@ -291,12 +291,11 @@ class ReadAnalysisCacheFromFS(beam.PTransform):
       result[dataset_key] = {}
       for key, cache_key_idx in manifest.items():
         if self._should_read_cache_entry_key(key):
-          result[dataset_key][key] = (
-              pvalue.pipeline
-              | 'Read[AnalysisIndex{}][CacheKeyIndex{}]'.format(
-                  dataset_key_idx, cache_key_idx) >> self._source('{}{}'.format(
-                      os.path.join(dataset_cache_path, str(cache_key_idx)),
-                      '-*-of-*')))
+          result[dataset_key][key] = pvalue.pipeline | (
+              f'Read[AnalysisIndex{dataset_key_idx}][CacheKeyIndex{cache_key_idx}]'
+              >> self._source(
+                  f'{os.path.join(dataset_cache_path, str(cache_key_idx))}-*-of-*'
+              ))
     return result
 
 

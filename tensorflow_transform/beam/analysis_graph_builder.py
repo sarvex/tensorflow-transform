@@ -84,19 +84,18 @@ class _TranslateVisitor(nodes.Visitor):
     self.intermediate_output_signature = None
 
   def visit(self, operation_def, input_values):
-    if isinstance(operation_def, analyzer_nodes.TensorSource):
-      tensors = operation_def.tensors
-      label = operation_def.label
-      # Add tensor to signature so it gets produced by the SavedModel.
-      for tensor in tensors:
-        self.intermediate_output_signature[_tensor_name(tensor)] = tensor
-      keys = tuple(map(_tensor_name, tensors))
-      output = nodes.apply_operation(
-          beam_nodes.ExtractFromDict, self.extracted_values_dict,
-          keys=keys, label=label)
-      return (output,)
-    else:
+    if not isinstance(operation_def, analyzer_nodes.TensorSource):
       return nodes.OperationNode(operation_def, input_values).outputs
+    tensors = operation_def.tensors
+    label = operation_def.label
+    # Add tensor to signature so it gets produced by the SavedModel.
+    for tensor in tensors:
+      self.intermediate_output_signature[_tensor_name(tensor)] = tensor
+    keys = tuple(map(_tensor_name, tensors))
+    output = nodes.apply_operation(
+        beam_nodes.ExtractFromDict, self.extracted_values_dict,
+        keys=keys, label=label)
+    return (output,)
 
   def validate_value(self, value):
     assert isinstance(value, nodes.ValueNode)
@@ -175,12 +174,11 @@ class _OptimizeVisitor(nodes.Visitor):
     self.cache_output_nodes = cache_output_nodes
 
   def _validate_operation_def(self, operation_def):
-    if operation_def.cache_coder is not None:
-      if not operation_def.is_partitionable:
-        raise ValueError('Non partitionable OperationDefs cannot be cacheable')
-    if operation_def.is_partitionable or operation_def.cache_coder is not None:
-      if operation_def.num_outputs != 1:
-        raise ValueError('Cacheable OperationDefs must have exactly 1 output')
+    if (operation_def.cache_coder is not None
+        and not operation_def.is_partitionable):
+      raise ValueError('Non partitionable OperationDefs cannot be cacheable')
+    if operation_def.is_partitionable and operation_def.num_outputs != 1:
+      raise ValueError('Cacheable OperationDefs must have exactly 1 output')
 
   def _make_next_hashed_path(self, parent_hashed_paths, operation_def):
     # Making a copy of parent_hashed_paths.
@@ -198,11 +196,9 @@ class _OptimizeVisitor(nodes.Visitor):
           continue
         paths_to_hash.append(
             tf.compat.as_bytes(str((attr, getattr(operation_def, attr)))))
-      for field in operation_def._fields:
-        paths_to_hash.append(
-            tf.compat.as_bytes(
-                str((field, operation_def.get_field_str(field)))))
-
+      paths_to_hash.extend(
+          tf.compat.as_bytes(str((field, operation_def.get_field_str(field))))
+          for field in operation_def._fields)
     hash_container = hashlib.sha1()
     for path in paths_to_hash:
       if path is None:
@@ -237,7 +233,8 @@ class _OptimizeVisitor(nodes.Visitor):
       next_inputs = nodes.apply_multi_output_operation(
           beam_nodes.Flatten,
           *disaggregated_input_values,
-          label='FlattenCache[{}]'.format(operation_def.label))
+          label=f'FlattenCache[{operation_def.label}]',
+      )
     else:
       # Parent operation output is not cacheable, therefore we can just use
       # a flattened view.
@@ -309,27 +306,29 @@ class _OptimizeVisitor(nodes.Visitor):
 
     for (dataset_idx, dataset_key) in enumerate(self._sorted_dataset_keys):
       # We use an index for the label in order to make beam labels more stable.
-      infix = 'AnalysisIndex{}'.format(dataset_idx)
+      infix = f'AnalysisIndex{dataset_idx}'
       if (operation_def.cache_coder and self._cache_dict.get(
           dataset_key, {}).get(cache_entry_key) is not None):
         decode_cache = analyzer_nodes.DecodeCache(
             dataset_key,
             cache_entry_key,
             coder=operation_def.cache_coder,
-            label='DecodeCache[{}][{}]'.format(operation_def.label, infix))
+            label=f'DecodeCache[{operation_def.label}][{infix}]',
+        )
         (op_output,) = nodes.OperationNode(decode_cache, tuple()).outputs
       else:
         value_nodes = tuple(v[dataset_key] for v in fine_grained_views)
-        (op_output,) = nodes.OperationNode(
-            operation_def._replace(
-                label='{}[{}]'.format(operation_def.label, infix)),
-            value_nodes).outputs
+        (op_output, ) = nodes.OperationNode(
+            operation_def._replace(label=f'{operation_def.label}[{infix}]'),
+            value_nodes,
+        ).outputs
         if operation_def.cache_coder:
           encode_cache = nodes.apply_operation(
               analyzer_nodes.EncodeCache,
               op_output,
               coder=operation_def.cache_coder,
-              label='EncodeCache[{}][{}]'.format(operation_def.label, infix))
+              label=f'EncodeCache[{operation_def.label}][{infix}]',
+          )
           self.cache_output_nodes[(dataset_key, cache_entry_key)] = encode_cache
       result_fine_grained_view[dataset_key] = op_output
 
@@ -343,18 +342,17 @@ class _OptimizeVisitor(nodes.Visitor):
 
     fine_grained_view = collections.OrderedDict()
     for (dataset_idx, dataset_key) in enumerate(self._sorted_dataset_keys):
-      infix = 'AnalysisIndex{}'.format(dataset_idx)
+      infix = f'AnalysisIndex{dataset_idx}'
       input_node = nodes.apply_operation(
           beam_nodes.ExtractInputForSavedModel,
           dataset_key=dataset_key,
-          label='ExtractInputForSavedModel[{}]'.format(infix))
+          label=f'ExtractInputForSavedModel[{infix}]',
+      )
       # We use an index for the label in order to make beam labels more stable.
-      (fine_grained_view[dataset_key],) = (
-          nodes.OperationNode(
-              operation_def._replace(
-                  label='{}[{}]'.format(operation_def.label, infix)),
-              (saved_model_path_upstream_view.flattened_view,
-               input_node)).outputs)
+      (fine_grained_view[dataset_key], ) = nodes.OperationNode(
+          operation_def._replace(label=f'{operation_def.label}[{infix}]'),
+          (saved_model_path_upstream_view.flattened_view, input_node),
+      ).outputs
 
     (flattened_view,) = nodes.OperationNode(
         operation_def, (saved_model_path_upstream_view.flattened_view,
@@ -370,8 +368,8 @@ class _OptimizeVisitor(nodes.Visitor):
     assert isinstance(value, _OptimizationView), value
     if value.fine_grained_view:
       assert set(value.fine_grained_view.keys()) == set(
-          self._sorted_dataset_keys), ('{} != {}'.format(
-              value.fine_grained_view.keys(), self._sorted_dataset_keys))
+          self._sorted_dataset_keys
+      ), f'{value.fine_grained_view.keys()} != {self._sorted_dataset_keys}'
 
 
 def _perform_cache_optimization(saved_model_future, dataset_keys,
@@ -410,7 +408,7 @@ def _build_analysis_graph_for_inspection(preprocessing_fn, specs, dataset_keys,
                                          input_cache, force_tf_compat_v1):
   """Builds the analysis graph for inspection."""
   if not force_tf_compat_v1:
-    assert all([isinstance(s, tf.TypeSpec) for s in specs.values()]), specs
+    assert all(isinstance(s, tf.TypeSpec) for s in specs.values()), specs
   graph, structured_inputs, structured_outputs = (
       impl_helper.trace_preprocessing_function(
           preprocessing_fn,
@@ -480,7 +478,7 @@ def get_analysis_cache_entry_keys(preprocessing_fn,
   _, cache_dict = _build_analysis_graph_for_inspection(preprocessing_fn, specs,
                                                        dataset_keys, {},
                                                        force_tf_compat_v1)
-  return set([cache_key for _, cache_key in cache_dict.keys()])
+  return {cache_key for _, cache_key in cache_dict.keys()}
 
 
 def build(graph,
@@ -557,7 +555,7 @@ def build(graph,
       label='ExtractInputForSavedModel[FlattenedDataset]')
 
   while not all(sink_tensors_ready.values()):
-    infix = 'Phase{}'.format(phase)
+    infix = f'Phase{phase}'
     # Determine which table init ops are ready to run in this phase
     # Determine which keys of pending_tensor_replacements are ready to run
     # in this phase, based in whether their dependencies are ready.
@@ -574,14 +572,16 @@ def build(graph,
         *tensor_bindings,
         table_initializers=tuple(graph_analyzer.ready_table_initializers),
         output_signature=intermediate_output_signature,
-        label='CreateSavedModelForAnalyzerInputs[{}]'.format(infix))
+        label=f'CreateSavedModelForAnalyzerInputs[{infix}]',
+    )
 
     extracted_values_dict = nodes.apply_operation(
         beam_nodes.ApplySavedModel,
         saved_model_future,
         extracted_input_node,
         phase=phase,
-        label='ApplySavedModel[{}]'.format(infix))
+        label=f'ApplySavedModel[{infix}]',
+    )
 
     translate_visitor.phase = phase
     translate_visitor.intermediate_output_signature = (
@@ -607,10 +607,11 @@ def build(graph,
               dtype_enum=tensor.dtype.as_datatype_enum,
               is_asset_filepath=is_asset_filepath,
               label=analyzer_nodes.sanitize_label(
-                  'CreateTensorBinding[{}]'.format(name))))
+                  f'CreateTensorBinding[{name}]'),
+          ))
       sink_tensors_ready[hashable_tensor] = True
 
-    analyzers_input_signature.update(intermediate_output_signature)
+    analyzers_input_signature |= intermediate_output_signature
     phase += 1
 
   # We need to make sure that the representation of this output_signature is

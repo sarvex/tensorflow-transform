@@ -148,7 +148,7 @@ def _expand_input_map(logical_input_map, input_signature):
     elif encoding == 'name':
       result[tensor_info.name] = replacement
     else:
-      raise ValueError('Unsupported TensorInfo encoding %s' % encoding)
+      raise ValueError(f'Unsupported TensorInfo encoding {encoding}')
   return result
 
 
@@ -164,7 +164,6 @@ def _maybe_register_addon_ops():
       importlib.import_module(name)
     except (ImportError, tf.errors.NotFoundError):
       tf.compat.v1.logging.info('{} is not available.'.format(name))
-      pass
 
   _try_import('tensorflow_text')
   _try_import('tensorflow_decision_forests')
@@ -243,7 +242,7 @@ def _partially_apply_saved_transform_impl(saved_model_dir,
   # current scope.  Therefore, we check if the current name stack is non-empty,
   # and if so, strip out the existing name scope.
   if graph.get_name_scope():
-    current_name_scope = graph.get_name_scope() + '/'
+    current_name_scope = f'{graph.get_name_scope()}/'
     assert scope.startswith(current_name_scope)
     import_scope = scope[len(current_name_scope):]
   else:
@@ -301,7 +300,7 @@ def _partially_apply_saved_transform_impl(saved_model_dir,
     var_map = {}
     for var in tf.compat.v1.global_variables():
       var_name = var.op.name
-      if not var_name.startswith(scope + '/'):
+      if not var_name.startswith(f'{scope}/'):
         continue
 
       # Generate original name before importing into scope.
@@ -316,7 +315,7 @@ def _partially_apply_saved_transform_impl(saved_model_dir,
         partition_index = int(match.group(2))
         if base_name not in var_map:
           var_map[base_name] = []
-        while not partition_index < len(var_map[base_name]):
+        while partition_index >= len(var_map[base_name]):
           var_map[base_name].append(None)
         assert var_map[base_name][partition_index] is None
         var_map[base_name][partition_index] = var
@@ -339,6 +338,7 @@ def _partially_apply_saved_transform_impl(saved_model_dir,
     else:
       return graph.get_tensor_by_name(
           ops.prepend_name_scope(tensor_name, scope))
+
   def lookup_tensor_or_sparse_or_composite_tensor(tensor_info):
     """Returns the remapped tensor corresponding to TensorInfo."""
     encoding = tensor_info.WhichOneof('encoding')
@@ -364,7 +364,8 @@ def _partially_apply_saved_transform_impl(saved_model_dir,
     elif encoding == 'name':
       return lookup_remapped_tensor(tensor_info.name)
     else:
-      raise ValueError('Unsupported TensorInfo encoding %s' % encoding)
+      raise ValueError(f'Unsupported TensorInfo encoding {encoding}')
+
   outputs = {
       logical_name: lookup_tensor_or_sparse_or_composite_tensor(tensor_info)
       for logical_name, tensor_info in output_signature.items()

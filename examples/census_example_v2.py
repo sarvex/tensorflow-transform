@@ -252,9 +252,9 @@ def main(input_data_dir,
     transformed_train_and_eval_patterns = None
   else:
     train_pattern = os.path.join(working_dir,
-                                 common.TRANSFORMED_TRAIN_DATA_FILEBASE + '*')
+                                 f'{common.TRANSFORMED_TRAIN_DATA_FILEBASE}*')
     eval_pattern = os.path.join(working_dir,
-                                common.TRANSFORMED_TEST_DATA_FILEBASE + '*')
+                                f'{common.TRANSFORMED_TEST_DATA_FILEBASE}*')
     raw_train_and_eval_patterns = None
     transformed_train_and_eval_patterns = (train_pattern, eval_pattern)
   output_dir = os.path.join(working_dir, common.EXPORTED_MODEL_DIR)

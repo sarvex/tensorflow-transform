@@ -84,8 +84,7 @@ def _decompose_tensor_or_op(tensor_or_op):
     A tf.Tensor or tf.Operation, depending on what tensor_or_op is.
   """
   if isinstance(tensor_or_op, composite_tensor.CompositeTensor):
-    for component in tf.nest.flatten(tensor_or_op, expand_composites=True):
-      yield component
+    yield from tf.nest.flatten(tensor_or_op, expand_composites=True)
   else:
     yield tensor_or_op
 
@@ -148,15 +147,14 @@ def get_func_graph_for_name(graph, func_name):
     if hasattr(graph, 'outer_graph'):
       graph = graph.outer_graph
     else:
-      raise ValueError(
-          'Function {} does not exist in the graph.'.format(func_name))
+      raise ValueError(f'Function {func_name} does not exist in the graph.')
 
 
 class _UnexpectedPlaceholderError(Exception):
 
   def __init__(self, op, func_graph_name):
     tensor = op.outputs[0]
-    msg = 'An unexpected placeholder was encountered ({})'.format(tensor)
+    msg = f'An unexpected placeholder was encountered ({tensor})'
     super().__init__(msg)
     self.tensor = tensor
     self.func_graph_name = func_graph_name
@@ -165,7 +163,7 @@ class _UnexpectedPlaceholderError(Exception):
 class _UnexpectedTableError(Exception):
 
   def __init__(self, op, func_graph_name):
-    msg = 'An unexpected initializable table was encountered ({})'.format(op)
+    msg = f'An unexpected initializable table was encountered ({op})'
     super().__init__(msg)
     self.op = op
     self.func_graph_name = func_graph_name
@@ -261,8 +259,9 @@ class _GraphAnalyzer:
     elif isinstance(tensor_or_op, tf.Tensor):
       parents = [tensor_or_op.op]
     else:
-      raise TypeError('Expected Tensor or Operation, got {} of type {}'.format(
-          tensor_or_op, type(tensor_or_op)))
+      raise TypeError(
+          f'Expected Tensor or Operation, got {tensor_or_op} of type {type(tensor_or_op)}'
+      )
     return parents
 
   def _compute_analysis_results_for_func_attributes(self, tensor_or_op,
@@ -321,7 +320,7 @@ class _GraphAnalyzer:
       ]
       infos = {
           tf_utils.hashable_tensor_or_op(t):
-          _SourceInfo(ready, 'FuncGraphInput[{}]'.format(idx))
+          _SourceInfo(ready, f'FuncGraphInput[{idx}]')
           for idx, (t, ready) in enumerate(func_graph_inputs_ready)
       }
       func_graph_analyzer = _GraphAnalyzer(infos, self._translate_path_fn,
@@ -471,8 +470,8 @@ class _GraphAnalyzer:
         tensor_or_op,
         (tf.Tensor, tf.SparseTensor, tf.RaggedTensor, tf.Operation)):
       raise TypeError(
-          'Expected Tensor, SparseTensor, RaggedTensor, or Operation got {} of type {}'
-          .format(tensor_or_op, type(tensor_or_op)))
+          f'Expected Tensor, SparseTensor, RaggedTensor, or Operation got {tensor_or_op} of type {type(tensor_or_op)}'
+      )
     return all(
         self.analyze_tensor(component).is_ready_to_run
         for component in _decompose_tensor_or_op(tensor_or_op))
@@ -500,8 +499,7 @@ class _GraphAnalyzer:
       _UnexpectedPlaceholderError: If a placeholder is encountered.
     """
     if not isinstance(tensor, tf.Tensor):
-      raise TypeError('Expected Tensor got {} of type {}'.format(
-          tensor, type(tensor)))
+      raise TypeError(f'Expected Tensor got {tensor} of type {type(tensor)}')
     return self.analyze_tensor(tensor).path
 
 
@@ -575,12 +573,9 @@ class InitializableGraphAnalyzer:
         continue
 
       if isinstance(graph, tf_func_graph.FuncGraph):
-        self._log_warning('Tables initialized inside a tf.function  will be'
-                          ' re-initialized on every invocation of the function.'
-                          ' This  re-initialization can have significant impact'
-                          ' on performance. Consider lifting  them out of the'
-                          ' graph context using  `tf.init_scope`.: {}'.format(
-                              table_init_op_or_tensor.name))
+        self._log_warning(
+            f'Tables initialized inside a tf.function  will be re-initialized on every invocation of the function. This  re-initialization can have significant impact on performance. Consider lifting  them out of the graph context using  `tf.init_scope`.: {table_init_op_or_tensor.name}'
+        )
 
       table_init_op, table_input_ops = (
           self._get_table_init_op_and_inputs(table_init_op_or_tensor))
@@ -603,29 +598,18 @@ class InitializableGraphAnalyzer:
 
   def _get_table_init_op_and_inputs(self, table_init_op_or_tensor):
     """Get a tuple of table init op and keys for its input ops."""
-    # If a TF2 exported SavedModel with a table is loaded inside the
-    # preprocessing_fn, the TABLE_INITIALIZERS collection of the outer graph
-    # contains a Tensor whose parent op is of type StatefulPartitionedCall.
-    # The nested func graph for this StatefulPartitionedCall contains the
-    # table initializer.
     if (isinstance(table_init_op_or_tensor, tf.Tensor) and
         table_init_op_or_tensor.op.type == 'StatefulPartitionedCall'):
-      result = (table_init_op_or_tensor.op,
-                [input_t.op for input_t in table_init_op_or_tensor.op.inputs])
-    else:
-      assert isinstance(table_init_op_or_tensor, tf.Operation)
-      # We are using the table init op information and the table op information,
-      # since that is a unique description of the table op.
-      table_ops = []
-      for input_t in table_init_op_or_tensor.inputs:
-        # One of the inputs to the initializer op should be the table op. If
-        # no table op is found, (as in the case of a StatefulPartitionedCall)
-        # all inputs are added to the source dict.
-        if input_t.dtype == tf.resource:
-          table_ops.append(input_t.op)
-      assert len(table_ops) == 1
-      result = (table_init_op_or_tensor, [table_ops[0]])
-    return result
+      return table_init_op_or_tensor.op, [
+          input_t.op for input_t in table_init_op_or_tensor.op.inputs
+      ]
+    assert isinstance(table_init_op_or_tensor, tf.Operation)
+    table_ops = [
+        input_t.op for input_t in table_init_op_or_tensor.inputs
+        if input_t.dtype == tf.resource
+    ]
+    assert len(table_ops) == 1
+    return table_init_op_or_tensor, [table_ops[0]]
 
   def _make_source_infos_dict(self, input_signature, replaced_tensors_ready):
     """Builds a dictionary from source tensors to _SourceInfos.
@@ -654,17 +638,18 @@ class InitializableGraphAnalyzer:
 
     for name, tensor in input_signature.items():
       if isinstance(tensor, tf.Tensor):
-        _set_unique_value_in_dict(result, tensor,
-                                  _SourceInfo(True, '{}$tensor'.format(name)))
+        _set_unique_value_in_dict(result, tensor, _SourceInfo(True, f'{name}$tensor'))
       elif isinstance(tensor, composite_tensor.CompositeTensor):
         for idx, tensor_component in enumerate(_decompose_tensor_or_op(tensor)):
           _set_unique_value_in_dict(
-              result, tensor_component,
-              _SourceInfo(True, '{}$composite_tensor_{}'.format(name, idx)))
+              result,
+              tensor_component,
+              _SourceInfo(True, f'{name}$composite_tensor_{idx}'),
+          )
       else:
         raise TypeError(
-            'Expected Tensor, or CompositeTensor, got {} of type {}'.format(
-                tensor, type(tensor)))
+            f'Expected Tensor, or CompositeTensor, got {tensor} of type {type(tensor)}'
+        )
     return result
 
   def _get_table_init_op_source_info(self, table_init_op, graph_analyzer,
@@ -673,12 +658,11 @@ class InitializableGraphAnalyzer:
 
     if table_init_op.type not in _TABLE_INIT_OP_TYPES:
       raise ValueError(
-          'Table initializer {} did not have expected op type'.format(
-              table_init_op))
+          f'Table initializer {table_init_op} did not have expected op type')
     if not table_init_op.inputs:
       raise ValueError(
-          'Table initializer {} did not have expected number if inputs '
-          '(expected >= 1 inputs, got 0)'.format(table_init_op))
+          f'Table initializer {table_init_op} did not have expected number if inputs (expected >= 1 inputs, got 0)'
+      )
     table_op = table_init_op.inputs[0].op
     table_init_inputs = table_init_op.inputs[1:]
     try:
@@ -690,17 +674,14 @@ class InitializableGraphAnalyzer:
       if e.func_graph_name:
         raise e
       raise ValueError(
-          'The table initializer {} depended on a placeholder ({}).  Note '
-          'placeholders will not be fed during table initialization'.format(
-              table_init_op, e.tensor))
+          f'The table initializer {table_init_op} depended on a placeholder ({e.tensor}).  Note placeholders will not be fed during table initialization'
+      )
     except _UnexpectedTableError as e:
       if e.func_graph_name:
         raise e
       raise ValueError(
-          'The table initializer {} depended on an initializable table ({}). '
-          'Note tables are initialized in one pass so a table initializer '
-          'cannot depend on the output of an initializeable table'.format(
-              table_init_op, e.op))
+          f'The table initializer {table_init_op} depended on an initializable table ({e.op}). Note tables are initialized in one pass so a table initializer cannot depend on the output of an initializeable table'
+      )
     return _SourceInfo(ready, path)
 
   @property
@@ -750,21 +731,20 @@ class InitializableGraphAnalyzer:
         tensor_or_op,
         (tf.Tensor, tf.SparseTensor, tf.RaggedTensor, tf.Operation)):
       raise TypeError(
-          'Expected Tensor, SparseTensor, RaggedTensor or Operation got {} of '
-          'type {}'.format(tensor_or_op, type(tensor_or_op)))
+          f'Expected Tensor, SparseTensor, RaggedTensor or Operation got {tensor_or_op} of type {type(tensor_or_op)}'
+      )
 
     dependents = set()
     for component in _decompose_tensor_or_op(tensor_or_op):
       dependents.update(
           self._graph_analyzer.analyze_tensor(component).dependent_sources)
 
-    result = {}
-    for name, tensor in self._input_signature.items():
-      if any(
-          tf_utils.hashable_tensor_or_op(component) in dependents
-          for component in _decompose_tensor_or_op(tensor)):
-        result[name] = tensor
-    return result
+    return {
+        name: tensor
+        for name, tensor in self._input_signature.items() if any(
+            tf_utils.hashable_tensor_or_op(component) in dependents
+            for component in _decompose_tensor_or_op(tensor))
+    }
 
 
 class _QuietInitializableGraphAnalyzer(InitializableGraphAnalyzer):
@@ -809,7 +789,7 @@ def get_dependent_inputs(graph, input_tensors, output_tensors):
                                                     sink_tensors_ready)
   dependent_inputs = {}
   for output_tensor in output_container:
-    dependent_inputs.update(graph_analyzer.get_dependent_inputs(output_tensor))
+    dependent_inputs |= graph_analyzer.get_dependent_inputs(output_tensor)
   return {
       name: tensor
       for name, tensor in input_tensors.items()
@@ -915,7 +895,7 @@ def _retrieve_source_keys(
         tf_utils.hashable_tensor_or_op(v)
         for v in _decompose_tensor_or_op(value)
     ])
-    if any([s in components for s in hashable_sources]):
+    if any(s in components for s in hashable_sources):
       result.add(key)
   return result
 

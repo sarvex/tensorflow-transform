@@ -1248,8 +1248,8 @@ def segment_indices(segment_ids: tf.Tensor,
   ndims = segment_ids.get_shape().ndims
   if ndims != 1 and ndims is not None:
     raise ValueError(
-        'segment_indices requires a 1-dimensional input. '
-        'segment_indices has {} dimensions.'.format(ndims))
+        f'segment_indices requires a 1-dimensional input. segment_indices has {ndims} dimensions.'
+    )
   with tf.compat.v1.name_scope(name, 'segment_indices'):
     # TODO(KesterTong): This is a fundamental operation for segments, write a C++
     # op to do this.
@@ -1317,15 +1317,14 @@ def deduplicate_tensor_per_row(input_tensor, name=None):
 
     if isinstance(input_tensor, tf.SparseTensor):
       return _deduplicate_tensor_per_row(input_tensor, batch_dim)
-    else:
-      # Again check for rank 1 tensor (that doesn't need deduplication), this
-      # time handling inputs where rank isn't known until execution time.
-      dynamic_rank = tf.rank(input_tensor)
-      return tf.cond(
-          tf.equal(dynamic_rank, 1),
-          lambda: _univalent_dense_to_sparse(batch_dim, input_tensor),
-          lambda: _deduplicate_tensor_per_row(input_tensor, batch_dim),
-      )
+    # Again check for rank 1 tensor (that doesn't need deduplication), this
+    # time handling inputs where rank isn't known until execution time.
+    dynamic_rank = tf.rank(input_tensor)
+    return tf.cond(
+        tf.equal(dynamic_rank, 1),
+        lambda: _univalent_dense_to_sparse(batch_dim, input_tensor),
+        lambda: _deduplicate_tensor_per_row(input_tensor, batch_dim),
+    )
 
 
 _DedupRowLoopArgs = tfx_namedtuple.namedtuple(
@@ -1669,8 +1668,8 @@ def hash_strings(
   if (not isinstance(strings, (tf.Tensor, tf.SparseTensor, tf.RaggedTensor)) or
       strings.dtype != tf.string):
     raise TypeError(
-        'Input to hash_strings must be a Tensor or CompositeTensor of dtype '
-        'string; got {}'.format(strings.dtype))
+        f'Input to hash_strings must be a Tensor or CompositeTensor of dtype string; got {strings.dtype}'
+    )
   if isinstance(strings, tf.Tensor):
     if name is None:
       name = 'hash_strings'
@@ -1732,7 +1731,7 @@ def bucketize(x: common_types.ConsistentTensorType,
   """
   with tf.compat.v1.name_scope(name, 'bucketize'):
     if not isinstance(num_buckets, int):
-      raise TypeError('num_buckets must be an int, got %s' % type(num_buckets))
+      raise TypeError(f'num_buckets must be an int, got {type(num_buckets)}')
 
     if num_buckets < 1:
       raise ValueError('Invalid num_buckets %d' % num_buckets)
@@ -1759,10 +1758,10 @@ def bucketize(x: common_types.ConsistentTensorType,
     num_features = tf.math.reduce_prod(x.get_shape()[1:])
     bucket_boundaries = tf.reshape(bucket_boundaries, [num_features, -1])
     x_reshaped = tf.reshape(x, [-1, num_features])
-    bucketized = []
-    for idx, boundaries in enumerate(tf.unstack(bucket_boundaries, axis=0)):
-      bucketized.append(apply_buckets(x_reshaped[:, idx],
-                                      tf.expand_dims(boundaries, axis=0)))
+    bucketized = [
+        apply_buckets(x_reshaped[:, idx], tf.expand_dims(boundaries, axis=0))
+        for idx, boundaries in enumerate(tf.unstack(bucket_boundaries, axis=0))
+    ]
     return tf.reshape(tf.stack(bucketized, axis=1),
                       [-1] + x.get_shape().as_list()[1:])
 
@@ -1801,11 +1800,10 @@ def bucketize_per_key(
   """
   with tf.compat.v1.name_scope(name, 'bucketize_per_key'):
     if not isinstance(num_buckets, int):
-      raise TypeError(
-          'num_buckets must be an int, got {}'.format(type(num_buckets)))
+      raise TypeError(f'num_buckets must be an int, got {type(num_buckets)}')
 
     if num_buckets < 1:
-      raise ValueError('Invalid num_buckets {}'.format(num_buckets))
+      raise ValueError(f'Invalid num_buckets {num_buckets}')
 
     if epsilon is None:
       # See explanation in args documentation for epsilon.
@@ -1966,8 +1964,8 @@ def apply_buckets_with_interpolation(
     compose_result_fn = _make_composite_tensor_wrapper_if_composite(x)
     if not (x_values.dtype.is_floating or x_values.dtype.is_integer):
       raise ValueError(
-          'Input tensor to be normalized must be numeric, got {}.'.format(
-              x_values.dtype))
+          f'Input tensor to be normalized must be numeric, got {x_values.dtype}.'
+      )
     # Remove any non-finite boundaries.
     if bucket_boundaries.dtype in (tf.float64, tf.float32):
       bucket_boundaries = tf.expand_dims(

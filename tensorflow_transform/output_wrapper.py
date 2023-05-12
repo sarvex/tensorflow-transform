@@ -39,9 +39,8 @@ from tensorflow_metadata.proto.v0 import schema_pb2
 def _get_tensor_value(tensor_or_eager_tensor: tf.Tensor) -> Any:
   if ops.executing_eagerly_outside_functions():
     return np.asarray(tensor_or_eager_tensor)
-  else:
-    with tf.compat.v1.Session():
-      return tensor_or_eager_tensor.eval()
+  with tf.compat.v1.Session():
+    return tensor_or_eager_tensor.eval()
 
 
 class _TransformedFeaturesDict(dict):
@@ -166,12 +165,11 @@ class TFTransformOutput:
     prefix = os.path.join(self.transform_savedmodel_dir,
                           tf.saved_model.ASSETS_DIRECTORY,
                           sanitized_vocab_filename(filename=vocab_filename))
-    files = tf.io.gfile.glob(prefix) + tf.io.gfile.glob(
-        '{}.tfrecord.gz'.format(prefix))
+    files = (tf.io.gfile.glob(prefix) + tf.io.gfile.glob(f'{prefix}.tfrecord.gz'))
     if not files:
       return None
     if len(files) != 1:
-      raise ValueError('Found too many vocabulary files: {}'.format(files))
+      raise ValueError(f'Found too many vocabulary files: {files}')
     return files[0]
 
   def vocabulary_size_by_name(self, vocab_filename: str) -> int:
@@ -198,8 +196,8 @@ class TFTransformOutput:
     """Like vocabulary_file_by_name but returns a list."""
     vocab_path = self.vocabulary_file_by_name(vocab_filename)
     if not vocab_path:
-      raise ValueError('Could not read vocabulary: {}, does not exist'.format(
-          vocab_filename))
+      raise ValueError(
+          f'Could not read vocabulary: {vocab_filename}, does not exist')
     elif vocab_path.endswith('tfrecord.gz'):
       dataset = tf.data.TFRecordDataset(vocab_path, compression_type='GZIP')
       vocab_tensor = dataset.batch(tf.int32.max).reduce(
@@ -219,13 +217,11 @@ class TFTransformOutput:
     try:
       domain = self.transformed_domains()[name]
     except KeyError:
-      raise ValueError('Column {} did not have a domain provided.'.format(name))
+      raise ValueError(f'Column {name} did not have a domain provided.')
     if not isinstance(domain, schema_pb2.IntDomain):
-      raise ValueError('Column {} has domain {}, expected an IntDomain'.format(
-          name, domain))
+      raise ValueError(f'Column {name} has domain {domain}, expected an IntDomain')
     if domain.min != 0:
-      raise ValueError('Column {} has min value {}, should be 0'.format(
-          name, domain.min))
+      raise ValueError(f'Column {name} has min value {domain.min}, should be 0')
     return domain.max + 1
 
   def transform_features_layer(self) -> tf.keras.Model:
@@ -471,10 +467,7 @@ class TransformFeaturesLayer(tf.keras.Model):
           self._tft_output.transform_savedmodel_dir)
       self._loaded_saved_model_graph = ops.get_default_graph()
 
-    # TODO(b/160294509): Use tf.compat.v1 when we stop supporting TF 1.15.
-    if ops.executing_eagerly_outside_functions():
-      return self._saved_model_loader_value
-    else:
+    if not ops.executing_eagerly_outside_functions():
       assert not self._exported_as_v1
       # TODO(b/149997088): Raise an exception once we no longer support using
       # the Keras layer with estimator based Trainer.
@@ -489,7 +482,7 @@ class TransformFeaturesLayer(tf.keras.Model):
         self._saved_model_loader_value = saved_transform_io_v2.SavedModelLoader(
             self._tft_output.transform_savedmodel_dir)
         self._loaded_saved_model_graph = default_graph
-      return self._saved_model_loader_value
+    return self._saved_model_loader_value
 
   def _init_batch_counters(self, *args, **kwargs):  # pylint: disable=g-doc-args
     """Overriding this method because Model's implementation creates variables.
@@ -502,13 +495,12 @@ class TransformFeaturesLayer(tf.keras.Model):
       self, inputs: Mapping[str, common_types.TensorType]
   ) -> Dict[str, common_types.TensorType]:
 
-    if self._exported_as_v1 and not ops.executing_eagerly_outside_functions():
-      tf.compat.v1.logging.warning('Falling back to transform_raw_features...')
-      return self._tft_output._transform_raw_features_compat_v1(  # pylint: disable=protected-access
-          inputs,
-          drop_unused_features=True)
-    else:
+    if not self._exported_as_v1 or ops.executing_eagerly_outside_functions():
       return self._saved_model_loader.apply_transform_model(inputs)
+    tf.compat.v1.logging.warning('Falling back to transform_raw_features...')
+    return self._tft_output._transform_raw_features_compat_v1(  # pylint: disable=protected-access
+        inputs,
+        drop_unused_features=True)
 
 
 def _make_method_override(name):

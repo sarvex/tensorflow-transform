@@ -153,12 +153,11 @@ def register_pyfuncs_from_saved_transform(graph, meta_graph, loaded_in_tf2):
   # any tokens to change.
   if new_tokens_by_old_token:
     for node in graph_def.node:
-      if node.op == 'PyFunc' or node.op == 'PyFuncStateless':
+      if node.op in ['PyFunc', 'PyFuncStateless']:
         token = node.attr['token']
         new_token = new_tokens_by_old_token.get(token.s, None)
         if new_token is not None:
           token.s = new_token
-        else:
-          if token.s not in expected_tokens_in_graph_def:
-            raise ValueError(f'Function: {node.name} was not registered')
+        elif token.s not in expected_tokens_in_graph_def:
+          raise ValueError(f'Function: {node.name} was not registered')
   return graph_def

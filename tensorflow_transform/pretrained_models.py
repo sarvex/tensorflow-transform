@@ -205,11 +205,10 @@ def apply_saved_model(model_dir, inputs, tags, signature_name=None,
     tf.compat.v1.add_to_collection(tf.compat.v1.GraphKeys.TABLE_INITIALIZERS,
                                    initializer_op)
 
-  if output_single_tensor:
-    assert len(output_tensor_names) == 1
-    return returned_output_tensors[0]
-  else:
+  if not output_single_tensor:
     return returned_output_tensors
+  assert len(output_tensor_names) == 1
+  return returned_output_tensors[0]
 
 
 def apply_function_with_checkpoint(fn, inputs, checkpoint, include=None,
@@ -276,8 +275,7 @@ def apply_function_with_checkpoint(fn, inputs, checkpoint, include=None,
       output_graph_def, input_map=input_map,
       return_elements=[tensor.name for tensor in output_tensors])
 
-  if output_single_tensor:
-    assert len(output_tensors) == 1
-    return output_tensors[0]
-  else:
+  if not output_single_tensor:
     return output_tensors
+  assert len(output_tensors) == 1
+  return output_tensors[0]

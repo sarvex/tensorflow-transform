@@ -38,7 +38,7 @@ def get_analyze_input_columns(preprocessing_fn,
   """
   use_tf_compat_v1 = tf2_utils.use_tf_compat_v1(force_tf_compat_v1)
   if not use_tf_compat_v1:
-    assert all([isinstance(s, tf.TypeSpec) for s in specs.values()]), specs
+    assert all(isinstance(s, tf.TypeSpec) for s in specs.values()), specs
   graph, structured_inputs, _ = (
       impl_helper.trace_preprocessing_function(
           preprocessing_fn, specs, use_tf_compat_v1=use_tf_compat_v1))
@@ -71,7 +71,7 @@ def get_transform_input_columns(preprocessing_fn,
   """
   use_tf_compat_v1 = tf2_utils.use_tf_compat_v1(force_tf_compat_v1)
   if not use_tf_compat_v1:
-    assert all([isinstance(s, tf.TypeSpec) for s in specs.values()]), specs
+    assert all(isinstance(s, tf.TypeSpec) for s in specs.values()), specs
   graph, structured_inputs, structured_outputs = (
       impl_helper.trace_preprocessing_function(
           preprocessing_fn, specs, use_tf_compat_v1=use_tf_compat_v1))

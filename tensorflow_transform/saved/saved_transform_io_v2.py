@@ -75,9 +75,7 @@ def _restore_from_v1_saved_model(
 
 
 def _as_operation(op_or_tensor: Union[tf.Operation, tf.Tensor]) -> tf.Operation:
-  if isinstance(op_or_tensor, tf.Tensor):
-    return op_or_tensor.op
-  return op_or_tensor
+  return op_or_tensor.op if isinstance(op_or_tensor, tf.Tensor) else op_or_tensor
 
 
 def _get_component_tensors(
@@ -223,12 +221,9 @@ class SavedModelLoader:
       self, unfed_input_keys: Iterable[str],
       batch_size: int) -> Dict[str, common_types.TensorType]:
     """Supplies inputs for `unfed_input_keys`."""
-    result = {}
-    if unfed_input_keys:
-      result = (
-          tf2_utils.supply_missing_inputs(self._structured_inputs, batch_size,
-                                          unfed_input_keys))
-    return result
+    return ((tf2_utils.supply_missing_inputs(self._structured_inputs, batch_size,
+                                             unfed_input_keys))
+            if unfed_input_keys else {})
 
   def _apply_v1_transform_model_in_v2(
       self, logical_input_map: Mapping[str, common_types.TensorType]
@@ -260,7 +255,7 @@ class SavedModelLoader:
       try:
         tensor.shape.assert_is_compatible_with(input_map[name].shape)
       except ValueError as e:
-        raise ValueError('{}: {}'.format(name, e))
+        raise ValueError(f'{name}: {e}')
       feeds.append(tensor)
       pruned_input_args.append(input_map[name])
 
@@ -276,13 +271,12 @@ class SavedModelLoader:
 
   def _format_input_map_as_tensors(self, input_map):
     """Returns a map from string to `tf.Tensor` or `CompositeTensor`."""
-    result = {}
-    for key, value in input_map.items():
-      if isinstance(value, (tf.Tensor, composite_tensor.CompositeTensor)):
-        result[key] = value
-      else:
-        result[key] = tf.convert_to_tensor(value)
-    return result
+    return {
+        key: value if isinstance(value,
+                                 (tf.Tensor, composite_tensor.CompositeTensor))
+        else tf.convert_to_tensor(value)
+        for key, value in input_map.items()
+    }
 
   def _apply_v2_transform_model_finalized(
       self, logical_input_map: Mapping[str, common_types.TensorType]
@@ -354,7 +348,7 @@ class SavedModelLoader:
       try:
         wrapped_input.shape.assert_is_compatible_with(input_t.shape)
       except ValueError as e:
-        raise ValueError('{}: {}'.format(input_t, e))
+        raise ValueError(f'{input_t}: {e}')
 
     transformed_features = self._wrapped_function(*flattened_inputs)
     fetches_keys = self._get_fetches_keys(feeds)
@@ -374,11 +368,9 @@ class SavedModelLoader:
       A dict of logical name to Tensor, as provided by the output signature of
       the transform graph.
     """
-    unexpected_inputs = (
-        set(logical_input_map.keys()) - set(self._structured_inputs.keys()))
-    if unexpected_inputs:
-      raise ValueError(
-          'Unexpected inputs to transform: {}'.format(unexpected_inputs))
+    if unexpected_inputs := (set(logical_input_map.keys()) -
+                             set(self._structured_inputs.keys())):
+      raise ValueError(f'Unexpected inputs to transform: {unexpected_inputs}')
 
     if self.load_v2_in_compat:
       return self._apply_v1_transform_model_in_v2(logical_input_map)
@@ -429,11 +421,9 @@ class SavedModelLoader:
     self._sorted_unfed_input_keys = sorted(
         self._get_unfed_input_keys(input_tensor_keys))
     feeds = self._get_feeds(self._sorted_unfed_input_keys)
-    unexpected_outputs = (
-        set(output_tensor_keys) - set(self._get_fetches_keys(feeds)))
-    if unexpected_outputs:
-      raise ValueError(
-          'Unexpected output keys requested: {}'.format(unexpected_outputs))
+    if unexpected_outputs := (set(output_tensor_keys) -
+                              set(self._get_fetches_keys(feeds))):
+      raise ValueError(f'Unexpected output keys requested: {unexpected_outputs}')
     self._wrapped_function_finalized = self._finalize_wrapped_function(
         self._sorted_unfed_input_keys, sorted(output_tensor_keys))
     self._is_finalized = True
@@ -446,10 +436,10 @@ def _strip_control_dependencies(
   # If an automatic control dependency node was added, all output tensors will
   # be the result of Identity ops with the original output tensor value as an
   # input and the automatic control dependencies as control inputs.
-  if not all([t.op.type == 'Identity' for t in flat_tensor_list]):
+  if any(t.op.type != 'Identity' for t in flat_tensor_list):
     return flat_tensor_list
 
-  if not all([len(t.op.inputs) == 1 for t in flat_tensor_list]):
+  if any(len(t.op.inputs) != 1 for t in flat_tensor_list):
     return flat_tensor_list
 
   return [t.op.inputs[0] for t in flat_tensor_list]

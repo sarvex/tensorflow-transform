@@ -308,14 +308,16 @@ CreateSavedModel [label="{CreateSavedModel|table_initializers: 0|output_signatur
 
 def _preprocessing_fn_with_chained_ptransforms(inputs):
 
-  class FakeChainable(
-      tfx_namedtuple.namedtuple('FakeChainable', ['label']),
-      nodes.OperationDef):
+
+
+
+  class FakeChainable(tfx_namedtuple.namedtuple('FakeChainable', ['label']), nodes.OperationDef):
 
     def __new__(cls):
       scope = tf.compat.v1.get_default_graph().get_name_scope()
-      label = '{}[{}]'.format(cls.__name__, scope)
+      label = f'{cls.__name__}[{scope}]'
       return super(FakeChainable, cls).__new__(cls, label=label)
+
 
   with tf.compat.v1.name_scope('x'):
     input_values_node = nodes.apply_operation(
@@ -413,10 +415,11 @@ class AnalysisGraphBuilderTest(test_case.TransformTestCase):
     dot_string = nodes.get_dot_graph([transform_fn_future]).to_string()
     self.WriteRenderedDotFile(dot_string)
     self.assertMultiLineEqual(
-        msg='Result dot graph is:\n{}'.format(dot_string),
+        msg=f'Result dot graph is:\n{dot_string}',
         first=dot_string,
         second=(expected_dot_graph_str
-                if use_tf_compat_v1 else expected_dot_graph_str_tf2))
+                if use_tf_compat_v1 else expected_dot_graph_str_tf2),
+    )
 
   @test_case.named_parameters(*test_case.cross_named_parameters(
       [

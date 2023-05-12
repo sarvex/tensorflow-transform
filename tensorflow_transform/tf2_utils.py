@@ -58,10 +58,7 @@ def supply_missing_tensor(batch_size: int, tensor_shape: tf.TensorShape,
   result_shape = [input_shape[0] or batch_size]
 
   for shape in input_shape[1:]:
-    if shape is None:
-      result_shape = result_shape + [1]
-    else:
-      result_shape = result_shape + [shape]
+    result_shape = result_shape + [1] if shape is None else result_shape + [shape]
   return tf.zeros(result_shape, dtype=tensor_dtype)
 
 

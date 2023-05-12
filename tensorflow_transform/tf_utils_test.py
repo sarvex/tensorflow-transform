@@ -278,9 +278,8 @@ class TFUtilsTest(test_case.TransformTestCase):
       self.assertIsNone(summed_positive_per_x_and_y)
       if force:
         return unique_x, counts_per_x
-      else:
-        self.assertIsNone(counts_per_x)
-        return unique_x
+      self.assertIsNone(counts_per_x)
+      return unique_x
 
     expected_unique_x, expected_counts_per_x = expected_result
     if force:
@@ -1027,7 +1026,7 @@ class TFUtilsTest(test_case.TransformTestCase):
   def test_num_terms_and_factors(
       self, num_samples, dtype, expected_counts, expected_factors):
     results = tf_utils._num_terms_and_factors(num_samples, dtype)
-    counts = results[0:4]
+    counts = results[:4]
     assert len(expected_counts) == len(counts), (expected_counts, counts)
     for result, expected_count in zip(counts, expected_counts):
       self.assertEqual(result.dtype, dtype)
@@ -1144,7 +1143,7 @@ class TFUtilsTest(test_case.TransformTestCase):
       return result
 
     count_and_moments = _reduce_batch_count_l_moments(x)
-    counts = count_and_moments[0::2]
+    counts = count_and_moments[::2]
     moments = count_and_moments[1::2]
     for i in range(0, 4):
       self.assertEqual(counts[i].dtype, expected_counts[i].dtype)
@@ -1840,7 +1839,7 @@ class TFUtilsTest(test_case.TransformTestCase):
     with tf.compat.v1.Graph().as_default():
       key = _value_to_tensor(key)
       key_vocab = tf.constant(key_vocab)
-      reductions = tuple([tf.constant(t) for t in reductions])
+      reductions = tuple(tf.constant(t) for t in reductions)
       x = _value_to_tensor(x)
       expected_results = tuple(tf.constant(t) for t in expected_results)
       results = tf_utils.map_per_key_reductions(reductions, key, key_vocab, x)

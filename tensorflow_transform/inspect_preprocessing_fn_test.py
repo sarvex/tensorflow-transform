@@ -48,7 +48,7 @@ def _non_identity_ops_preprocessing_fn(inputs):
 
 
 def _renaming_preprocessing_fn(inputs):
-  return {'id_{}'.format(key): value for key, value in inputs.items()}
+  return {f'id_{key}': value for key, value in inputs.items()}
 
 
 @tf.function

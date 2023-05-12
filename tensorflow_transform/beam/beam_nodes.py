@@ -103,21 +103,19 @@ class CreateSavedModel(
       return 'Tensor'
     elif isinstance(tensor, tf.SparseTensor):
       return 'SparseTensor'
-    raise ValueError('Got a {}, expected a Tensor or SparseTensor'.format(
-        type(tensor)))
+    raise ValueError(f'Got a {type(tensor)}, expected a Tensor or SparseTensor')
 
   def get_field_str(self, field_name):
     # Overriding the str representation of table initializers since it may be
     # different for various versions of TF.
     if field_name == 'table_initializers':
-      return '{}'.format(len(self.table_initializers))
+      return f'{len(self.table_initializers)}'
     elif field_name == 'output_signature':
       copied = self.output_signature.copy()
       for key in copied:
         value = self.output_signature[key]
-        copied[key] = '{}<shape: {}, {}>'.format(
-            self._get_tensor_type_name(value), value.shape.as_list(),
-            value.dtype)
+        copied[
+            key] = f'{self._get_tensor_type_name(value)}<shape: {value.shape.as_list()}, {value.dtype}>'
       return str(copied)
     return super().get_field_str(field_name)
 

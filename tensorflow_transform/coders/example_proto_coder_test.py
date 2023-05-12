@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tensorflow-transform ExampleProtoCoder tests."""
 
+
 import copy
 import os
 import pickle
@@ -247,23 +248,23 @@ _ENCODE_ERROR_CASES = [
 # TODO(b/160294509): Move these to the initial definition once TF 1.x support is
 # dropped.
 if common_types.is_ragged_feature_available():
-  _FEATURE_SPEC.update({
+  _FEATURE_SPEC |= {
       'ragged_feature':
-          tf.io.RaggedFeature(
-              tf.float32,
-              value_key='ragged_val',
-              partitions=[
-                  tf.io.RaggedFeature.RowLengths('ragged_row_lengths1')
-              ]),
+      tf.io.RaggedFeature(
+          tf.float32,
+          value_key='ragged_val',
+          partitions=[tf.io.RaggedFeature.RowLengths('ragged_row_lengths1')],
+      ),
       '2d_ragged_feature':
-          tf.io.RaggedFeature(
-              tf.string,
-              value_key='2d_ragged_val',
-              partitions=[
-                  tf.io.RaggedFeature.RowLengths('2d_ragged_row_lengths1'),
-                  tf.io.RaggedFeature.RowLengths('2d_ragged_row_lengths2')
-              ]),
-  })
+      tf.io.RaggedFeature(
+          tf.string,
+          value_key='2d_ragged_val',
+          partitions=[
+              tf.io.RaggedFeature.RowLengths('2d_ragged_row_lengths1'),
+              tf.io.RaggedFeature.RowLengths('2d_ragged_row_lengths2'),
+          ],
+      ),
+  }
 
   _ENCODE_ERROR_CASES.append(
       dict(

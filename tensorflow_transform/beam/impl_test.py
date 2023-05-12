@@ -1067,8 +1067,8 @@ class BeamImplTest(tft_unit.TransformTestCase):
     for idx0, idx1 in expected_indices_prefix:
       instance = {}
       for n in output_names:
-        instance.update({n + idx0[0]: idx0[1]})
-        instance.update({n + idx1[0]: idx1[1]})
+        instance[n + idx0[0]] = idx0[1]
+        instance[n + idx1[0]] = idx1[1]
       expected_indices.append(instance)
 
     expected_data = [{
@@ -2067,8 +2067,7 @@ class BeamImplTest(tft_unit.TransformTestCase):
         analyzer_fn,
         expected_outputs)
 
-  @tft_unit.named_parameters(
-      dict(
+  @tft_unit.named_parameters(dict(
           testcase_name='_uniform',
           input_data=[{
               'x': [x]
@@ -2081,28 +2080,7 @@ class BeamImplTest(tft_unit.TransformTestCase):
                   10 * np.array([0] + [1] * 9, np.int64),
               'boundaries':
                   10 * np.arange(11, dtype=np.float32).reshape((1, 11))
-          }),
-      dict(
-          testcase_name='_categorical_string',
-          input_data=[{
-              'x': [str(x % 10) + '_']
-          } for x in range(1, 101)],
-          make_feature_spec=lambda: tf.io.FixedLenFeature([1], tf.string),
-          boundaries=None,
-          categorical=True,
-          expected_outputs={
-              'hist':
-                  10 * np.ones(10, np.int64),
-              'boundaries':
-                  np.asarray(
-                      sorted([
-                          tf.compat.as_bytes(str(x % 10) + '_')
-                          for x in range(10)
-                      ]),
-                      dtype=np.object)
-          },
-      ),
-      dict(
+          }), dict(testcase_name='_categorical_string', input_data=[{'x': [f'{str(x % 10)}_']} for x in range(1, 101)], make_feature_spec=lambda: tf.io.FixedLenFeature([1], tf.string), boundaries=None, categorical=True, expected_outputs={'hist': 10 * np.ones(10, np.int64), 'boundaries': np.asarray(sorted([tf.compat.as_bytes(f'{str(x % 10)}_') for x in range(10)]), dtype=np.object)}), dict(
           testcase_name='_categorical_int',
           input_data=[{
               'x': [(x % 10)]
@@ -2113,8 +2091,7 @@ class BeamImplTest(tft_unit.TransformTestCase):
           expected_outputs={
               'hist': 10 * np.ones(10, np.int64),
               'boundaries': np.arange(10)
-          }),
-      dict(
+          }), dict(
           testcase_name='_sparse',
           input_data=[{  # pylint: disable=g-complex-comprehension
               'val': [(x % 10)],
@@ -2128,8 +2105,7 @@ class BeamImplTest(tft_unit.TransformTestCase):
           expected_outputs={
               'hist': 10 * np.ones(10, np.int64),
               'boundaries': np.arange(10)
-          }),
-      dict(
+          }), dict(
           testcase_name='_ragged',
           input_data=[{  # pylint: disable=g-complex-comprehension
               'val': [x % 10, 9 - (x % 10)],
@@ -2147,8 +2123,7 @@ class BeamImplTest(tft_unit.TransformTestCase):
           expected_outputs={
               'hist': 20 * np.ones(10, np.int64),
               'boundaries': np.arange(10)
-          }),
-  )
+          }))
   def testHistograms(self, input_data, make_feature_spec, boundaries,
                      categorical, expected_outputs):
     self._SkipIfOutputRecordBatches()
@@ -2194,7 +2169,7 @@ class BeamImplTest(tft_unit.TransformTestCase):
 
     # NOTE: We force 10 batches: data has 100 elements and we request a batch
     # size of 10.
-    input_data = [{'x': [str(x % 10) + '_']} for x in range(1, 101)]
+    input_data = [{'x': [f'{str(x % 10)}_']} for x in range(1, 101)]
     input_metadata = tft_unit.metadata_from_feature_spec({
         'x': tf.io.FixedLenFeature([1], tf.string)
     })
@@ -3507,9 +3482,7 @@ class BeamImplTest(tft_unit.TransformTestCase):
     with self._makeTestPipeline() as pipeline:
       input_data = (
           pipeline | beam.Create([input_record_batch]))
-      with tft_beam.Context(
-          temp_dir=self.get_temp_dir(),
-          passthrough_keys=set([passthrough_key1, passthrough_key2])):
+      with tft_beam.Context(temp_dir=self.get_temp_dir(), passthrough_keys={passthrough_key1, passthrough_key2}):
         (transformed_data,
          _), _ = ((input_data, tensor_adapter_config)
                   | tft_beam.AnalyzeAndTransformDataset(

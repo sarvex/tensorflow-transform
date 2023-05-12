@@ -24,6 +24,7 @@ _MATERIALIZATION_BARRIER_TRANSFORMS as a materialization boundary for this
 purpose.
 """
 
+
 import queue
 
 import apache_beam as beam
@@ -32,11 +33,7 @@ from apache_beam import pvalue
 from apache_beam.pvalue import PCollection
 
 
-_MATERIALIZATION_BARRIER_TRANSFORMS = set([
-    beam.GroupByKey,
-    # CombinePerKey is included here to allow combiner lifting to occur.
-    beam.CombinePerKey,
-])
+_MATERIALIZATION_BARRIER_TRANSFORMS = {beam.GroupByKey, beam.CombinePerKey}
 
 
 def _is_at_materialization_boundary(pcollection):
@@ -80,12 +77,8 @@ def _get_items_to_clone(pcollection):
   reversed_to_clone = []
   # Queue of PCollections to be processed in traversal of pipeline graph.
   to_process = queue.Queue()
-  # Set of items (PCollections and PTransforms) already seen during pipeline
-  # graph traversal.
-  seen = set()
-
   to_process.put(pcollection)
-  seen.add(pcollection)
+  seen = {pcollection}
   while not to_process.empty():
     current_pcollection = to_process.get()
 
@@ -99,7 +92,7 @@ def _get_items_to_clone(pcollection):
     applied_transform = current_pcollection.producer
     if applied_transform is None:
       raise ValueError(
-          'PCollection node has invalid producer: %s' % current_pcollection)
+          f'PCollection node has invalid producer: {current_pcollection}')
 
     # Visit the input PCollection(s), and also add other outputs of that applied
     # PTransform.
@@ -166,7 +159,7 @@ def _clone_items(pipeline, to_clone):
       assert not item.parts, (
           'Reached invalid composite AppliedPTransform: %r.' % item)
       # Assign new label.
-      new_label_prefix = item.full_label + '.Copy'
+      new_label_prefix = f'{item.full_label}.Copy'
       new_label = new_label_prefix
       next_suffix = 0
       while new_label in pipeline.applied_labels:
@@ -200,7 +193,7 @@ def _clone_items(pipeline, to_clone):
       # their entirety during execution.
       copied.parent.parts.append(copied)
     else:
-      raise ValueError('Invalid object to clone: %s' % item)
+      raise ValueError(f'Invalid object to clone: {item}')
 
   return pcollection_replacements
 

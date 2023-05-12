@@ -144,16 +144,15 @@ def ptransform_analyzer(
   """
   # pylint: enable=line-too-long
   if len(output_dtypes) != len(output_shapes):
-    raise ValueError('output_dtypes ({}) and output_shapes ({}) had different'
-                     ' lengths'.format(output_dtypes, output_shapes))
-  if output_asset_default_values is not None:
-    if len(output_asset_default_values) != len(output_dtypes):
-      raise ValueError(
-          'output_dtypes ({}) and output_asset_default_values ({}) had '
-          'different lengths'.format(output_dtypes,
-                                     output_asset_default_values))
-  else:
+    raise ValueError(
+        f'output_dtypes ({output_dtypes}) and output_shapes ({output_shapes}) had different lengths'
+    )
+  if output_asset_default_values is None:
     output_asset_default_values = [None] * len(output_dtypes)
+  elif len(output_asset_default_values) != len(output_dtypes):
+    raise ValueError(
+        f'output_dtypes ({output_dtypes}) and output_asset_default_values ({output_asset_default_values}) had different lengths'
+    )
   with tf.compat.v1.name_scope(name, 'ptransform'):
     output_tensor_infos = [
         analyzer_nodes.TensorInfo(dtype, shape, default_asset_content)

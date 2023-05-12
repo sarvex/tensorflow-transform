@@ -55,13 +55,7 @@ def _make_cast_fn(np_dtype):
     return x
 
   def numeric_cast(x):
-    if isinstance(x, (np.generic, np.ndarray)):
-      # This works for both np.generic and np.array (of any shape).
-      return x.tolist()
-
-    # This works for python scalars (or lists thereof), which require no
-    # casting.
-    return x
+    return x.tolist() if isinstance(x, (np.generic, np.ndarray)) else x
 
   # This is in agreement with Tensorflow conversions for Unicode values for both
   # Python 2 and 3 (and also works for non-Unicode objects). It is also in
@@ -239,9 +233,9 @@ class ExampleProtoCoder:
         index_keys = (
             feature_spec.index_key if isinstance(feature_spec.index_key, list)
             else [feature_spec.index_key])
-        for index_key in index_keys:
-          self._feature_handlers.append(
-              _VarLenFeatureHandler(index_key, tf.int64))
+        self._feature_handlers.extend(
+            _VarLenFeatureHandler(index_key, tf.int64)
+            for index_key in index_keys)
         self._feature_handlers.append(
             _VarLenFeatureHandler(feature_spec.value_key, feature_spec.dtype))
       elif common_types.is_ragged_feature(feature_spec):
@@ -250,15 +244,15 @@ class ExampleProtoCoder:
             self._feature_handlers.append(
                 _VarLenFeatureHandler(partition.key, tf.int64))
           else:
-            raise ValueError('Only `RowLengths` partitions of ragged features '
-                             'are supported, got {}'.format(type(partition)))
+            raise ValueError(
+                f'Only `RowLengths` partitions of ragged features are supported, got {type(partition)}'
+            )
         self._feature_handlers.append(
             _VarLenFeatureHandler(feature_spec.value_key, feature_spec.dtype))
       else:
-        raise ValueError('feature_spec should be one of tf.io.FixedLenFeature, '
-                         'tf.io.VarLenFeature, tf.io.SparseFeature or '
-                         'tf.io.RaggedFeature: "{}" was {}'.format(
-                             name, type(feature_spec)))
+        raise ValueError(
+            f'feature_spec should be one of tf.io.FixedLenFeature, tf.io.VarLenFeature, tf.io.SparseFeature or tf.io.RaggedFeature: "{name}" was {type(feature_spec)}'
+        )
 
     for feature_handler in self._feature_handlers:
       feature_handler.initialize_encode_cache(self._encode_example_cache)
@@ -274,8 +268,7 @@ class ExampleProtoCoder:
       try:
         feature_handler.encode_value(value)
       except TypeError as e:
-        raise TypeError('%s while encoding feature "%s"' %
-                        (e, feature_handler.name))
+        raise TypeError(f'{e} while encoding feature "{feature_handler.name}"')
 
     if self._serialized:
       return self._encode_example_cache.SerializeToString()

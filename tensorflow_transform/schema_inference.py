@@ -58,16 +58,16 @@ def _ragged_feature_spec_from_batched_tensor(name, tensor):
                 length=dim))
       else:
         partitions.append(
-            tf.io.RaggedFeature.RowLengths(  # pytype: disable=attribute-error
-                key='{}$row_lengths_{}'.format(name,
-                                               row_lengths_partition_idx)))
+            tf.io.RaggedFeature.RowLengths(
+                key=f'{name}$row_lengths_{row_lengths_partition_idx}'))
         row_lengths_partition_idx += 1
 
     return tf.io.RaggedFeature(
         dtype=tensor.dtype,
-        value_key='{}$ragged_values'.format(name),
+        value_key=f'{name}$ragged_values',
         partitions=partitions,
-        row_splits_dtype=tensor.row_splits.dtype)
+        row_splits_dtype=tensor.row_splits.dtype,
+    )
   else:
     logging.warn(
         'Feature %s was a RaggedTensor.  A Schema will be generated but the '
@@ -96,33 +96,33 @@ def _feature_spec_from_batched_tensors(tensors):
   for name, tensor in tensors.items():
     if tensor.dtype not in (tf.string, tf.int64, tf.float32):
       raise ValueError(
-          'Feature {} ({}) had invalid dtype {} for feature spec'.format(
-              name, tensor, tensor.dtype))
+          f'Feature {name} ({tensor}) had invalid dtype {tensor.dtype} for feature spec'
+      )
     if isinstance(tensor, tf.SparseTensor):
       shape = tensor.get_shape()
       if shape.ndims > 2:
         feature_spec[name] = tf.io.SparseFeature(
             index_key=[
-                '{}$sparse_indices_{}'.format(name, idx)
+                f'{name}$sparse_indices_{idx}'
                 for idx in range(shape.ndims - 1)
             ],
-            value_key='{}$sparse_values'.format(name),
+            value_key=f'{name}$sparse_values',
             dtype=tensor.dtype,
             size=shape[1:],
-            already_sorted=True)
+            already_sorted=True,
+        )
       else:
         feature_spec[name] = tf.io.VarLenFeature(tensor.dtype)
     elif isinstance(tensor, tf.Tensor):
       shape = tensor.get_shape()
       if shape.ndims in [None, 0]:
         raise ValueError(
-            'Feature {} ({}) had invalid shape {} for FixedLenFeature: must '
-            'have rank at least 1'.format(name, tensor, shape))
+            f'Feature {name} ({tensor}) had invalid shape {shape} for FixedLenFeature: must have rank at least 1'
+        )
       if any(dim is None for dim in shape.as_list()[1:]):
         raise ValueError(
-            'Feature {} ({}) had invalid shape {} for FixedLenFeature: apart '
-            'from the batch dimension, all dimensions must have known size'
-            .format(name, tensor, shape))
+            f'Feature {name} ({tensor}) had invalid shape {shape} for FixedLenFeature: apart from the batch dimension, all dimensions must have known size'
+        )
       feature_spec[name] = tf.io.FixedLenFeature(shape.as_list()[1:],
                                                  tensor.dtype)
     elif isinstance(tensor, tf.RaggedTensor):
@@ -130,8 +130,8 @@ def _feature_spec_from_batched_tensors(tensors):
           _ragged_feature_spec_from_batched_tensor(name, tensor))
     else:
       raise TypeError(
-          'Expected a Tensor, SparseTensor, or RaggedTensor got {} of type {} '
-          'for feature {}'.format(tensor, type(tensor), name))
+          f'Expected a Tensor, SparseTensor, or RaggedTensor got {tensor} of type {type(tensor)} for feature {name}'
+      )
 
   return feature_spec
 
@@ -275,10 +275,10 @@ def _infer_feature_schema_common(features, tensor_ranges, feature_annotations,
   # Add the annotations to the schema.
   for annotation in global_annotations:
     schema_proto.annotation.extra_metadata.add().CopyFrom(annotation)
-  # Build a map from logical feature names to Feature protos
-  feature_protos_by_name = {}
-  for feature in schema_proto.feature:
-    feature_protos_by_name[feature.name] = feature
+  feature_protos_by_name = {
+      feature.name: feature
+      for feature in schema_proto.feature
+  }
   for sparse_feature in schema_proto.sparse_feature:
     for index_feature in sparse_feature.index_feature:
       feature_protos_by_name.pop(index_feature.name)
@@ -335,15 +335,15 @@ def set_tensor_schema_override(tensor, min_value, max_value):
     ValueError: If any arguments are invalid.
   """
   if not isinstance(tensor, tf.Tensor):
-    raise ValueError('tensor {} was not a Tensor'.format(tensor))
+    raise ValueError(f'tensor {tensor} was not a Tensor')
   if tensor.dtype != tf.int64:
     raise ValueError(
-        'Range can only be set for feature of type tf.int64, got {}'.format(
-            tensor.dtype))
+        f'Range can only be set for feature of type tf.int64, got {tensor.dtype}'
+    )
   if not isinstance(min_value, tf.Tensor):
-    raise ValueError('min_value {} was not a Tensor'.format(min_value))
+    raise ValueError(f'min_value {min_value} was not a Tensor')
   if not isinstance(max_value, tf.Tensor):
-    raise ValueError('max_value {} was not a Tensor'.format(max_value))
+    raise ValueError(f'max_value {max_value} was not a Tensor')
   tf.compat.v1.add_to_collection(_TF_METADATA_TENSOR_COLLECTION, tensor)
   tf.compat.v1.add_to_collection(_TF_METADATA_TENSOR_MIN_COLLECTION, min_value)
   tf.compat.v1.add_to_collection(_TF_METADATA_TENSOR_MAX_COLLECTION, max_value)
@@ -354,8 +354,8 @@ def _get_tensor_ranges(graph):
   tensors = graph.get_collection(_TF_METADATA_TENSOR_COLLECTION)
   min_values = graph.get_collection(_TF_METADATA_TENSOR_MIN_COLLECTION)
   max_values = graph.get_collection(_TF_METADATA_TENSOR_MAX_COLLECTION)
-  assert len(tensors) == len(min_values), '{} != {}'.format(tensors, min_values)
-  assert len(tensors) == len(max_values), '{} != {}'.format(tensors, max_values)
+  assert len(tensors) == len(min_values), f'{tensors} != {min_values}'
+  assert len(tensors) == len(max_values), f'{tensors} != {max_values}'
   return dict(
       zip(
           map(tf_utils.hashable_tensor_or_op, tensors),
@@ -367,8 +367,8 @@ def _get_tensor_ranges_v2(metadata):
   tensors = metadata[_TF_METADATA_TENSOR_COLLECTION]
   min_values = metadata[_TF_METADATA_TENSOR_MIN_COLLECTION]
   max_values = metadata[_TF_METADATA_TENSOR_MAX_COLLECTION]
-  assert len(tensors) == len(min_values), '{} != {}'.format(tensors, min_values)
-  assert len(tensors) == len(max_values), '{} != {}'.format(tensors, max_values)
+  assert len(tensors) == len(min_values), f'{tensors} != {min_values}'
+  assert len(tensors) == len(max_values), f'{tensors} != {max_values}'
   return {
       tensor.numpy().decode(): (min_value.numpy(), max_value.numpy())
       for (tensor, min_value, max_value) in zip(tensors, min_values, max_values)
@@ -414,9 +414,9 @@ def annotate(type_url, proto_message, tensor=None):
     tensor = tf.constant('unused', name=_TF_METADATA_EXTRA_ANNOTATION_GLOBAL)
 
   if not isinstance(tensor, (tf.Tensor, tf.SparseTensor)):
-    raise ValueError('tensor {} was not a Tensor'.format(tensor))
+    raise ValueError(f'tensor {tensor} was not a Tensor')
   if not isinstance(proto_message, tf.Tensor):
-    raise ValueError('proto_message {} was not a Tensor'.format(proto_message))
+    raise ValueError(f'proto_message {proto_message} was not a Tensor')
 
   # If the type_url is passed as a plain string, create a string tensor.
   if not isinstance(type_url, tf.Tensor):

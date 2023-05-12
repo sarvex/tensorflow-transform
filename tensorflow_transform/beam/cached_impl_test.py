@@ -51,9 +51,13 @@ def _make_cache_key(cache_identifier):
 
 
 def _encode_vocabulary_accumulator(token_bytes, value_bytes):
-  return struct.pack('qq{}s{}s'.format(len(token_bytes), len(value_bytes)),
-                     len(token_bytes), len(value_bytes), token_bytes,
-                     value_bytes)
+  return struct.pack(
+      f'qq{len(token_bytes)}s{len(value_bytes)}s',
+      len(token_bytes),
+      len(value_bytes),
+      token_bytes,
+      value_bytes,
+  )
 
 
 def _preprocessing_fn_for_common_optimize_traversal(inputs):
@@ -252,13 +256,14 @@ _TF_VERSION_NAMED_PARAMETERS = [
 
 def _preprocessing_fn_for_generalized_chained_ptransforms(inputs):
 
-  class FakeChainablePartitionable(
-      tfx_namedtuple.namedtuple('FakeChainablePartitionable', ['label']),
-      nodes.OperationDef):
+
+
+
+  class FakeChainablePartitionable(tfx_namedtuple.namedtuple('FakeChainablePartitionable', ['label']), nodes.OperationDef):
 
     def __new__(cls):
       scope = tf.compat.v1.get_default_graph().get_name_scope()
-      label = '{}[{}]'.format(cls.__name__, scope)
+      label = f'{cls.__name__}[{scope}]'
       return super(FakeChainablePartitionable, cls).__new__(cls, label=label)
 
     @property
@@ -269,13 +274,14 @@ def _preprocessing_fn_for_generalized_chained_ptransforms(inputs):
     def is_partitionable(self):
       return True
 
-  class FakeChainableCacheable(
-      tfx_namedtuple.namedtuple('FakeChainableCacheable', ['label']),
-      nodes.OperationDef):
+
+
+
+  class FakeChainableCacheable(tfx_namedtuple.namedtuple('FakeChainableCacheable', ['label']), nodes.OperationDef):
 
     def __new__(cls):
       scope = tf.compat.v1.get_default_graph().get_name_scope()
-      label = '{}[{}]'.format(cls.__name__, scope)
+      label = f'{cls.__name__}[{scope}]'
       return super(FakeChainableCacheable, cls).__new__(cls, label=label)
 
     @property
@@ -290,13 +296,14 @@ def _preprocessing_fn_for_generalized_chained_ptransforms(inputs):
     def cache_coder(self):
       return 'Not-a-coder-but-thats-ok!'
 
-  class FakeChainable(
-      tfx_namedtuple.namedtuple('FakeChainable', ['label']),
-      nodes.OperationDef):
+
+
+
+  class FakeChainable(tfx_namedtuple.namedtuple('FakeChainable', ['label']), nodes.OperationDef):
 
     def __new__(cls):
       scope = tf.compat.v1.get_default_graph().get_name_scope()
-      label = '{}[{}]'.format(cls.__name__, scope)
+      label = f'{cls.__name__}[{scope}]'
       return super(FakeChainable, cls).__new__(cls, label=label)
 
     @property
@@ -306,6 +313,7 @@ def _preprocessing_fn_for_generalized_chained_ptransforms(inputs):
     @property
     def is_partitionable(self):
       return False
+
 
   with tf.compat.v1.name_scope('x'):
     input_values_node = nodes.apply_operation(
@@ -478,8 +486,7 @@ class CachedImplTest(tft_unit.TransformTestCase):
         sorted(cache_output_dict.values(), key=str)).to_string()
     tf.io.gfile.makedirs(self.base_test_dir)
     output_file = os.path.join(
-        self.base_test_dir,
-        'rendered_graph_{}.svg'.format(self._get_running_index()))
+        self.base_test_dir, f'rendered_graph_{self._get_running_index()}.svg')
     self.WriteRenderedDotFile(dot_string, output_file=output_file)
     return dot_string
 
@@ -538,11 +545,10 @@ class CachedImplTest(tft_unit.TransformTestCase):
         if cache_dict is not None:
           assert not should_read_cache
           for dataset in cache_dict:
-            cache_entry = {}
-            for idx, (k, v) in enumerate(cache_dict[dataset].items()):
-              cache_entry[k] = (
-                  p |
-                  'CreateCache[{}][{}]'.format(dataset, idx) >> beam.Create(v))
+            cache_entry = {
+                k: p | f'CreateCache[{dataset}][{idx}]' >> beam.Create(v)
+                for idx, (k, v) in enumerate(cache_dict[dataset].items())
+            }
             pcoll_cache_dict[dataset] = cache_entry
 
         # If requested, reads cache from the test cache directory.
@@ -594,7 +600,8 @@ class CachedImplTest(tft_unit.TransformTestCase):
               beam_test_util.assert_that(
                   cache_output[dataset][key],
                   beam_test_util.equal_to(value),
-                  label='AssertCache[{}][{}]'.format(dataset, idx))
+                  label=f'AssertCache[{dataset}][{idx}]',
+              )
 
         # Write transform_fn if provided with an output directory.
         if transform_fn_output_dir is not None:
@@ -1097,10 +1104,7 @@ class CachedImplTest(tft_unit.TransformTestCase):
         analyzer_cache.DatasetKey('span-1')
     ]
     if dataset_input_cache_dicts is not None:
-      cache = {
-          key: cache_dict
-          for key, cache_dict in zip(dataset_keys, dataset_input_cache_dicts)
-      }
+      cache = dict(zip(dataset_keys, dataset_input_cache_dicts))
     else:
       cache = {}
     dot_string = self._publish_rendered_dot_graph_file(preprocessing_fn,
@@ -1110,7 +1114,8 @@ class CachedImplTest(tft_unit.TransformTestCase):
     self.assertSameElements(
         expected_dot_graph_str.split('\n'),
         dot_string.split('\n'),
-        msg='Result dot graph is:\n{}'.format(dot_string))
+        msg=f'Result dot graph is:\n{dot_string}',
+    )
 
   def test_no_data_needed(self):
     span_0_key = analyzer_cache.DatasetKey('span-0')

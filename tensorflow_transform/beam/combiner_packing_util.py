@@ -175,12 +175,12 @@ class _PackAccumulateCombineVisitor(_ValidationVisitor):
       grand_parent_node = parent_node.parent_operation.inputs[0]
       assert (grand_parent_node.parent_operation.operation_def.label ==
               grand_parent_label)
-      self._packed_combine_cache[grand_parent_label] = (
-          nodes.apply_operation(
-              analyzer_nodes.PackedCombineAccumulate,
-              grand_parent_node,
-              combiners=self._packable_combines[grand_parent_label],
-              label='PackedCombineAccumulate[{}]'.format(grand_parent_label)))
+      self._packed_combine_cache[grand_parent_label] = nodes.apply_operation(
+          analyzer_nodes.PackedCombineAccumulate,
+          grand_parent_node,
+          combiners=self._packable_combines[grand_parent_label],
+          label=f'PackedCombineAccumulate[{grand_parent_label}]',
+      )
     # For the current combine, create the ExtractFromDict node which
     # extracts the accumulator corresponding to this combine from the
     # packed combine output.
@@ -295,14 +295,14 @@ class _PackMergeCombineVisitor(_ValidationVisitor):
         beam_nodes.ExtractFromDict,
         packed_combine,
         keys=parent.operation_def.label,
-        label='ExtractFromDict[{}]'.format(parent.operation_def.label))
+        label=f'ExtractFromDict[{parent.operation_def.label}]',
+    )
     # Create the new ExtractPackedCombineMergeOutputs node.
     return nodes.apply_multi_output_operation(
         analyzer_nodes.ExtractPackedCombineMergeOutputs,
         extract_dict_node,
         output_tensor_info_list=operation_def.output_tensor_infos,
-        label='ExtractPackedCombineMergeOutputs[{}]'.format(
-            parent.operation_def.label)
+        label=f'ExtractPackedCombineMergeOutputs[{parent.operation_def.label}]',
     )
 
   def _get_packed_combine(self, operation_def, input_values):
@@ -311,16 +311,16 @@ class _PackMergeCombineVisitor(_ValidationVisitor):
           analyzer_nodes.AddKey,
           value,
           key=operation_def.label,
-          label='AddKey[{}]'.format(operation_def.label))
+          label=f'AddKey[{operation_def.label}]',
+      )
       self._flatten_inputs.append(keyed_value)
     # TODO(b/134414978): When we add support for multi-phase merge packing,
     # add phase number to the flatten and packed combine labels.
-    flatten_label = 'FlattenInputForPackedCombineMerge[{}]'.format(
-        len(self._flatten_inputs))
+    flatten_label = (
+        f'FlattenInputForPackedCombineMerge[{len(self._flatten_inputs)}]')
     flatten_node = nodes.apply_operation(
         beam_nodes.Flatten, *self._flatten_inputs, label=flatten_label)
-    packed_combine_label = 'PackedCombineMerge[{}]'.format(
-        len(self._flatten_inputs))
+    packed_combine_label = f'PackedCombineMerge[{len(self._flatten_inputs)}]'
     packed_combine = nodes.apply_operation(
         analyzer_nodes.PackedCombineMerge,
         flatten_node,

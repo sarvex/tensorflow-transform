@@ -267,13 +267,10 @@ class NumPyCombiner(analyzer_nodes.Combiner):
       ]
 
   def merge_accumulators(self, accumulators):
-    # If the first subaccumulator is default, then the accumulator is default
-    # and can be discarded.
-    non_default_accumulators = [
+    if non_default_accumulators := [
         accumulator for accumulator in accumulators
         if not self._is_default_sub_accumulator(accumulator[0])
-    ]
-    if non_default_accumulators:
+    ]:
       return [
           # numpy's sum, min, max, etc functions operate on array-like objects,
           # but not arbitrary iterables. Convert the provided sub_accumulators
@@ -305,9 +302,7 @@ def _get_output_shape_from_input(x):
 
   # When reducing over batch dimensions, with known shape, the result will be
   # the same shape as the input, but without the batch.
-  if x.shape.rank is not None:
-    return x.shape.as_list()[1:]
-  return (None,)
+  return x.shape.as_list()[1:] if x.shape.rank is not None else (None, )
 
 
 # TODO(b/112414577): Go back to accepting only a single input.
@@ -532,16 +527,9 @@ def _min_and_max_per_key(
 
   with tf.compat.v1.name_scope(name, 'min_and_max_per_key'):
     output_dtype = x.dtype
-    if (not reduce_instance_dims and
-        isinstance(x,
-                   (tf.SparseTensor, tf.RaggedTensor)) and x.dtype.is_floating):
-      combine_fn = np.nanmax
-      default_accumulator_value = (np.nan if x.dtype.is_floating else
-                                   -output_dtype.max)
-    else:
-      combine_fn = np.max
-      default_accumulator_value = (-np.inf if x.dtype.is_floating else
-                                   -output_dtype.max)
+    combine_fn = np.max
+    default_accumulator_value = (-np.inf if x.dtype.is_floating else
+                                 -output_dtype.max)
 
     key_vocab, x_batch_minus_min, x_batch_max = (
         tf_utils.reduce_batch_minus_min_and_max_per_key(x, key))
@@ -609,9 +597,9 @@ def sum(  # pylint: disable=redefined-builtin
         x = x.flat_values
       x = tf.reduce_sum(input_tensor=x)
     elif isinstance(x, tf.SparseTensor):
-      if x.dtype == tf.uint8 or x.dtype == tf.uint16:
+      if x.dtype in [tf.uint8, tf.uint16]:
         x = tf.cast(x, tf.int64)
-      elif x.dtype == tf.uint32 or x.dtype == tf.uint64:
+      elif x.dtype in [tf.uint32, tf.uint64]:
         TypeError('Data type %r is not supported' % x.dtype)
       x = tf.sparse.reduce_sum(x, axis=0)
     elif isinstance(x, tf.RaggedTensor):
@@ -843,8 +831,8 @@ def _mean_and_var(x: common_types.TensorType,
   """More efficient combined `mean` and `var`.  See `var`."""
   if output_dtype is None:
     output_dtype = _FLOAT_OUTPUT_DTYPE_MAP.get(x.dtype)
-    if output_dtype is None:
-      raise TypeError('Tensor type %r is not supported' % x.dtype)
+  if output_dtype is None:
+    raise TypeError('Tensor type %r is not supported' % x.dtype)
   if not reduce_instance_dims and isinstance(x, tf.RaggedTensor):
     raise NotImplementedError(
         'Elementwise mean_and_var does not support RaggedTensors.')
@@ -995,8 +983,8 @@ def _tukey_parameters(
   """Efficient computation of L-moments."""
   if output_dtype is None:
     output_dtype = _FLOAT_OUTPUT_DTYPE_MAP.get(x.dtype)
-    if output_dtype is None:
-      raise TypeError('Tensor type %r is not supported' % x.dtype)
+  if output_dtype is None:
+    raise TypeError('Tensor type %r is not supported' % x.dtype)
 
   with tf.compat.v1.name_scope('tukey_parameters'):
 
@@ -1015,10 +1003,7 @@ def _tukey_parameters(
         l3=l3,
         l4=l4)
 
-    output_shape = ()
-    if not reduce_instance_dims:
-      output_shape = _get_output_shape_from_input(x)
-
+    output_shape = () if reduce_instance_dims else _get_output_shape_from_input(x)
     x_loc, x_scale, hl_param, hr_param = _apply_cacheable_combiner(
         _LMomentsCombiner(output_dtype.as_numpy_dtype, output_shape),
         *combine_inputs)
@@ -1061,8 +1046,8 @@ def _mean_and_var_per_key(
   """
   if output_dtype is None:
     output_dtype = _FLOAT_OUTPUT_DTYPE_MAP.get(x.dtype)
-    if output_dtype is None:
-      raise TypeError('Tensor type %r is not supported' % x.dtype)
+  if output_dtype is None:
+    raise TypeError('Tensor type %r is not supported' % x.dtype)
 
   if key is None:
     raise ValueError('A non-None key is required for _mean_and_var_per_key')
@@ -1639,7 +1624,7 @@ def _register_vocab(sanitized_filename: str,
   """
   if vocabulary_key is None:
     vocabulary_key = sanitized_filename
-  filename = ('{}.tfrecord.gz'.format(sanitized_filename)
+  filename = (f'{sanitized_filename}.tfrecord.gz'
               if file_format == 'tfrecord_gzip' else sanitized_filename)
   annotators.annotate_asset(vocabulary_key, filename)
 
@@ -1796,15 +1781,15 @@ def vocabulary(
     raise ValueError('You must specify `key_fn` if you specify `coverage_top_k'
                      ' or `coverage_frequency_threshold` in `vocabulary`.')
 
-  if key_fn and not (coverage_top_k or coverage_frequency_threshold):
+  if key_fn and not coverage_top_k and not coverage_frequency_threshold:
     raise ValueError('You must specify `coverage_top_k`  or '
                      '`coverage_frequency_threshold` if you specify `key_fn` in'
                      ' `vocabulary`.')
 
   if file_format not in ALLOWED_VOCABULARY_FILE_FORMATS:
     raise ValueError(
-        '"{}" is not an accepted file_format. It should be one of: {}'.format(
-            file_format, ALLOWED_VOCABULARY_FILE_FORMATS))
+        f'"{file_format}" is not an accepted file_format. It should be one of: {ALLOWED_VOCABULARY_FILE_FORMATS}'
+    )
 
   coverage_top_k, coverage_frequency_threshold = (
       _get_top_k_and_frequency_threshold(
@@ -1989,10 +1974,11 @@ def _vocabulary_analyzer_nodes(
       analyzer_nodes.bind_future_as_tensor(
           total_vocab_size_node,
           analyzer_nodes.TensorInfo(tf.int64, [], None),
-          name='{}_unpruned_vocab_size'.format(vocab_filename)))
+          name=f'{vocab_filename}_unpruned_vocab_size',
+      ),
+  )
 
-  vocab_filename_tensor = analyzer_nodes.wrap_as_tensor(vocab_filename_node)
-  return vocab_filename_tensor
+  return analyzer_nodes.wrap_as_tensor(vocab_filename_node)
 
 
 def calculate_recommended_min_diff_from_avg(dataset_size: int) -> int:

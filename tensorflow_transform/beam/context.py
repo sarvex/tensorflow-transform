@@ -154,9 +154,7 @@ class Context:
   def get_passthrough_keys(cls) -> Iterable[str]:
     """Retrieves a user set passthrough_keys, None if not set."""
     state = cls._get_topmost_state_frame()
-    if state.passthrough_keys is not None:
-      return state.passthrough_keys
-    return set()
+    return state.passthrough_keys if state.passthrough_keys is not None else set()
 
   @classmethod
   def get_use_deep_copy_optimization(cls) -> bool:
@@ -170,9 +168,7 @@ class Context:
   def _get_force_tf_compat_v1(cls) -> bool:
     """Retrieves flag force_tf_compat_v1."""
     state = cls._get_topmost_state_frame()
-    if state.force_tf_compat_v1 is not None:
-      return state.force_tf_compat_v1
-    return False
+    return False if state.force_tf_compat_v1 is None else state.force_tf_compat_v1
 
   @classmethod
   def get_use_tf_compat_v1(cls) -> bool:

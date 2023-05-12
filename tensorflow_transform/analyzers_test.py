@@ -453,14 +453,15 @@ _QUANTILES_NO_TRIM_TEST = dict(
 # pylint: disable=g-complex-comprehension
 _QUANTILES_SINGLE_BATCH_TESTS = [
     dict(
-        testcase_name='ComputeQuantilesSingleBatch-{}'.format(np_type),
-        combiner=analyzers.QuantilesCombiner(
-            num_quantiles=5, epsilon=0.00001, bucket_numpy_dtype=np.float32),
+        testcase_name=f'ComputeQuantilesSingleBatch-{np_type}',
+        combiner=analyzers.QuantilesCombiner(num_quantiles=5,
+                                             epsilon=0.00001,
+                                             bucket_numpy_dtype=np.float32),
         batches=[
-            (np.linspace(1, 100, 100, dtype=np_type),),
-            (np.linspace(101, 200, 100, dtype=np_type),),
-            (np.linspace(201, 300, 100, dtype=np_type),),
-            (np.empty((0, 3)),),
+            (np.linspace(1, 100, 100, dtype=np_type), ),
+            (np.linspace(101, 200, 100, dtype=np_type), ),
+            (np.linspace(201, 300, 100, dtype=np_type), ),
+            (np.empty((0, 3)), ),
         ],
         expected_outputs=[np.array([61, 121, 181, 241], dtype=np.float32)],
     ) for np_type in _NP_TYPES
@@ -468,31 +469,38 @@ _QUANTILES_SINGLE_BATCH_TESTS = [
 
 _QUANTILES_ELEMENTWISE_TESTS = [
     dict(
-        testcase_name='ComputeQuantilesElementwise-{}'.format(np_type),
+        testcase_name=f'ComputeQuantilesElementwise-{np_type}',
         combiner=analyzers.QuantilesCombiner(
             num_quantiles=5,
             epsilon=0.00001,
             bucket_numpy_dtype=np.float32,
-            feature_shape=[3]),
+            feature_shape=[3],
+        ),
         batches=[
-            (np.vstack([np.linspace(1, 100, 100, dtype=np_type),
-                        np.linspace(101, 200, 100, dtype=np_type),
-                        np.linspace(201, 300, 100, dtype=np_type)]).T,),
-            (np.empty((0, 3)),),
+            (np.vstack([
+                np.linspace(1, 100, 100, dtype=np_type),
+                np.linspace(101, 200, 100, dtype=np_type),
+                np.linspace(201, 300, 100, dtype=np_type),
+            ]).T, ),
+            (np.empty((0, 3)), ),
         ],
-        expected_outputs=[np.array([[21, 41, 61, 81],
-                                    [121, 141, 161, 181],
-                                    [221, 241, 261, 281]], dtype=np.float32)],
+        expected_outputs=[
+            np.array(
+                [[21, 41, 61, 81], [121, 141, 161, 181], [221, 241, 261, 281]],
+                dtype=np.float32,
+            )
+        ],
     ) for np_type in _NP_TYPES
 ]
 
 _QUANTILES_MULTIPLE_BATCH_TESTS = [
     dict(
-        testcase_name='ComputeQuantilesMultipleBatch-{}'.format(np_type),
-        combiner=analyzers.QuantilesCombiner(
-            num_quantiles=3, epsilon=0.00001, bucket_numpy_dtype=np.float32),
+        testcase_name=f'ComputeQuantilesMultipleBatch-{np_type}',
+        combiner=analyzers.QuantilesCombiner(num_quantiles=3,
+                                             epsilon=0.00001,
+                                             bucket_numpy_dtype=np.float32),
         batches=[
-            (np.linspace(1, 100, 100, np_type),),
+            (np.linspace(1, 100, 100, np_type), ),
         ],
         expected_outputs=[np.array([34, 67], dtype=np.float32)],
     ) for np_type in _NP_TYPES
@@ -500,11 +508,12 @@ _QUANTILES_MULTIPLE_BATCH_TESTS = [
 
 _EXACT_NUM_QUANTILES_TESTS = [
     dict(
-        testcase_name='ComputeExactNumQuantiles-{}'.format(np_type),
-        combiner=analyzers.QuantilesCombiner(
-            num_quantiles=4, epsilon=0.00001, bucket_numpy_dtype=np.float32),
+        testcase_name=f'ComputeExactNumQuantiles-{np_type}',
+        combiner=analyzers.QuantilesCombiner(num_quantiles=4,
+                                             epsilon=0.00001,
+                                             bucket_numpy_dtype=np.float32),
         batches=[
-            (np.array([1, 1]),),
+            (np.array([1, 1]), ),
         ],
         expected_outputs=[np.array([1, 1, 1], dtype=np.float32)],
     ) for np_type in _NP_TYPES

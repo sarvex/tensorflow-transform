@@ -142,10 +142,11 @@ class CensusExampleV2Test(tft_test_case.TransformTestCase):
     else:
       train_pattern = os.path.join(
           working_dir,
-          census_example_common.TRANSFORMED_TRAIN_DATA_FILEBASE + '*')
+          f'{census_example_common.TRANSFORMED_TRAIN_DATA_FILEBASE}*',
+      )
       eval_pattern = os.path.join(
           working_dir,
-          census_example_common.TRANSFORMED_TEST_DATA_FILEBASE + '*')
+          f'{census_example_common.TRANSFORMED_TEST_DATA_FILEBASE}*')
       raw_train_and_eval_patterns = None
       transformed_train_and_eval_patterns = (train_pattern, eval_pattern)
     output_dir = os.path.join(working_dir,

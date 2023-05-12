@@ -39,8 +39,8 @@ def read_metadata(path):
     schema_proto = _parse_schema_json(schema_json)
   else:
     raise IOError(
-        'Schema file {} does not exist and neither did legacy format file '
-        '{}'.format(schema_file, legacy_schema_file))
+        f'Schema file {schema_file} does not exist and neither did legacy format file {legacy_schema_file}'
+    )
   return dataset_metadata.DatasetMetadata(schema_proto)
 
 
@@ -82,7 +82,7 @@ def _column_schema_from_json(feature_dict):
   elif tf_options.get('varLenFeature') is not None:
     return tf.io.VarLenFeature(dtype)
   else:
-    raise ValueError('Could not interpret tfOptions: {}'.format(tf_options))
+    raise ValueError(f'Could not interpret tfOptions: {tf_options}')
 
 
 def _domain_from_json(domain):
@@ -105,7 +105,7 @@ def _dtype_from_json(domain):
     return tf.float32
   if domain.get('strings') is not None:
     return tf.string
-  raise ValueError('Unknown domain: {}'.format(domain))
+  raise ValueError(f'Unknown domain: {domain}')
 
 
 def write_metadata(metadata, path):

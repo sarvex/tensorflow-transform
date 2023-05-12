@@ -584,7 +584,8 @@ class GraphToolsTest(test_case.TransformTestCase):
       self.assertEqual(
           graph_analyzer.ready_to_run(tensor),
           ready,
-          msg='Expected tensor {} to be ready={}'.format(name, ready))
+          msg=f'Expected tensor {name} to be ready={ready}',
+      )
 
   @test_case.parameters(
       (_create_graph_with_y_function_of_x_and_table,
@@ -1296,12 +1297,8 @@ def _value_to_matcher(value, add_quotes=False):
   if isinstance(value, tf.Tensor):
     return _TensorMatcher(str(value.name))
   if isinstance(value, (str, bytes)):
-    if add_quotes:
-      return '\'{}\''.format(value)
-    else:
-      return value
-  raise ValueError('Cannot get a matcher for: {}, {}'.format(
-      type(value), value))
+    return f"\'{value}\'" if add_quotes else value
+  raise ValueError(f'Cannot get a matcher for: {type(value)}, {value}')
 
 
 if __name__ == '__main__':

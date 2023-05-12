@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for tensorflow_transform.impl_helper."""
 
+
 import copy
 import os
 
@@ -315,56 +316,68 @@ _ROUNDTRIP_CASES = [
 ]
 
 if common_types.is_ragged_feature_available():
-  _FEATURE_SPEC.update({
+  _FEATURE_SPEC |= {
       'h':
-          tf.io.RaggedFeature(tf.float32, value_key='h_val'),
+      tf.io.RaggedFeature(tf.float32, value_key='h_val'),
       'i':
-          tf.io.RaggedFeature(
-              tf.float32,
-              value_key='i_val',
-              partitions=[tf.io.RaggedFeature.RowLengths('i_row_lengths1')]),  # pytype: disable=attribute-error
+      tf.io.RaggedFeature(
+          tf.float32,
+          value_key='i_val',
+          partitions=[tf.io.RaggedFeature.RowLengths('i_row_lengths1')],
+      ),  # pytype: disable=attribute-error
       'j':
-          tf.io.RaggedFeature(
-              tf.float32,
-              value_key='j_val',
-              partitions=[
-                  tf.io.RaggedFeature.RowLengths('j_row_lengths1'),  # pytype: disable=attribute-error
-                  tf.io.RaggedFeature.RowLengths('j_row_lengths2'),  # pytype: disable=attribute-error
-              ]),
-  })
+      tf.io.RaggedFeature(
+          tf.float32,
+          value_key='j_val',
+          partitions=[
+              tf.io.RaggedFeature.RowLengths('j_row_lengths1'),  # pytype: disable=attribute-error
+              tf.io.RaggedFeature.RowLengths('j_row_lengths2'),  # pytype: disable=attribute-error
+          ],
+      ),
+  }
 
-  _FEED_DICT.update({
+  _FEED_DICT |= {
       'h':
-          tf.compat.v1.ragged.RaggedTensorValue(
-              values=np.array([1., 2., 3., 4., 5.], dtype=np.float32),
-              row_splits=np.array([0, 3, 5])),
+      tf.compat.v1.ragged.RaggedTensorValue(
+          values=np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32),
+          row_splits=np.array([0, 3, 5]),
+      ),
       'i':
-          tf.compat.v1.ragged.RaggedTensorValue(
-              values=tf.compat.v1.ragged.RaggedTensorValue(
-                  values=np.array([1., 2., 3., 3., 3., 1.], np.float32),
-                  row_splits=np.array([0, 0, 3, 6])),
-              row_splits=np.array([0, 2, 3])),
+      tf.compat.v1.ragged.RaggedTensorValue(
+          values=tf.compat.v1.ragged.RaggedTensorValue(
+              values=np.array([1.0, 2.0, 3.0, 3.0, 3.0, 1.0], np.float32),
+              row_splits=np.array([0, 0, 3, 6]),
+          ),
+          row_splits=np.array([0, 2, 3]),
+      ),
       'j':
-          tf.compat.v1.ragged.RaggedTensorValue(
+      tf.compat.v1.ragged.RaggedTensorValue(
+          values=tf.compat.v1.ragged.RaggedTensorValue(
               values=tf.compat.v1.ragged.RaggedTensorValue(
-                  values=tf.compat.v1.ragged.RaggedTensorValue(
-                      values=np.array([1., 2., 3., 4., 5.], np.float32),
-                      row_splits=np.array([0, 2, 3, 4, 5])),
-                  row_splits=np.array([0, 2, 3, 4])),
-              row_splits=np.array([0, 2, 3])),
-  })
+                  values=np.array([1.0, 2.0, 3.0, 4.0, 5.0], np.float32),
+                  row_splits=np.array([0, 2, 3, 4, 5]),
+              ),
+              row_splits=np.array([0, 2, 3, 4]),
+          ),
+          row_splits=np.array([0, 2, 3]),
+      ),
+  }
 
-  _MULTIPLE_FEATURES_CASE_RECORD_BATCH.update({
+  _MULTIPLE_FEATURES_CASE_RECORD_BATCH |= {
       'h':
-          pa.array([[1., 2., 3.], [4., 5.]], type=pa.large_list(pa.float32())),
+      pa.array([[1.0, 2.0, 3.0], [4.0, 5.0]],
+               type=pa.large_list(pa.float32())),
       'i':
-          pa.array([[[], [1., 2., 3.]], [[3., 3., 1.]]],
-                   type=pa.large_list(pa.large_list(pa.float32()))),
+      pa.array(
+          [[[], [1.0, 2.0, 3.0]], [[3.0, 3.0, 1.0]]],
+          type=pa.large_list(pa.large_list(pa.float32())),
+      ),
       'j':
-          pa.array([[[[1., 2.], [3.]], [[4.]]], [[[5.]]]],
-                   type=pa.large_list(
-                       pa.large_list(pa.large_list(pa.float32())))),
-  })
+      pa.array(
+          [[[[1.0, 2.0], [3.0]], [[4.0]]], [[[5.0]]]],
+          type=pa.large_list(pa.large_list(pa.large_list(pa.float32()))),
+      ),
+  }
 
   # multiple_features
   _ROUNDTRIP_CASES[0]['instances'][0].update({
@@ -838,9 +851,9 @@ class ImplHelperTest(test_case.TransformTestCase):
     self.assertLen(indices, len(expected_indices))
     self.assertLen(values, len(expected_values))
     for idx, (a, b) in enumerate(zip(expected_indices, indices)):
-      self.assertAllEqual(a, b, 'Indices are different at index {}'.format(idx))
+      self.assertAllEqual(a, b, f'Indices are different at index {idx}')
     for idx, (a, b) in enumerate(zip(expected_values, values)):
-      self.assertAllEqual(a, b, 'Values are different at index {}'.format(idx))
+      self.assertAllEqual(a, b, f'Values are different at index {idx}')
 
   def test_get_num_values_per_instance_in_sparse_batch(self):
     batch_indices = np.array([[idx % 4, 0, 1, 2] for idx in range(100)])

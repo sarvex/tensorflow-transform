@@ -241,12 +241,6 @@ def compute_tukey_hh_params(l_skewness_and_kurtosis):
     if upperbound_delta_found:
       search_params[0] = high_h
       max_search_params[0] = high_h   # Delta overestimated: upperbound for h.
-    else:
-      search_params[0] = low_h
-      min_search_params[0] = low_h   # Delta underestimated: lowerbound for h.
-      max_search_params[1] = low_h  # Delta not found, search on full range.
-
-    if upperbound_delta_found:  # If not found, we repeat the first 2 steps.
       # Otherwise, Search for delta at constant overestimated h.
       error_skewness = lambda x: _params_to_errors(  # pylint: disable=g-long-lambda
           search_params[0], x, l_skewness_and_kurtosis)[0]
@@ -262,6 +256,11 @@ def compute_tukey_hh_params(l_skewness_and_kurtosis):
           error_kurtosis, min_search_params[0], max_search_params[0])
       search_params[0] = low_h
       min_search_params[0] = low_h
+
+    else:
+      search_params[0] = low_h
+      min_search_params[0] = low_h   # Delta underestimated: lowerbound for h.
+      max_search_params[1] = low_h  # Delta not found, search on full range.
 
     current_error = _params_to_errors(
         search_params[0], search_params[1], l_skewness_and_kurtosis)

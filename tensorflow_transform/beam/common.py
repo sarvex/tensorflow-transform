@@ -181,8 +181,7 @@ class ConstructBeamPipelineVisitor(nodes.Visitor):
           if self._extra_args.use_tf_compat_v1 else EnvironmentTags.TF_V2_ONLY)
       ptransform, tag = ptransform_wrapper.get_ptransform(environment_tag)
     except KeyError:
-      raise ValueError('No implementation for {} was registered'.format(
-          operation))
+      raise ValueError(f'No implementation for {operation} was registered')
 
     # TODO(zoyahav): Consider extracting a single PCollection before passing to
     # ptransform if len(inputs) == 1.
@@ -193,15 +192,11 @@ class ConstructBeamPipelineVisitor(nodes.Visitor):
     outputs = ((inputs or beam.pvalue.PBegin(self._extra_args.pipeline))
                | tagged_label >> ptransform(operation, self._extra_args))
 
-    if isinstance(outputs, beam.pvalue.PCollection):
-      return (outputs,)
-    else:
-      return outputs
+    return (outputs, ) if isinstance(outputs, beam.pvalue.PCollection) else outputs
 
   def validate_value(self, value):
     if not isinstance(value, beam.pvalue.PCollection):
-      raise TypeError('Expected a PCollection, got {} of type {}'.format(
-          value, type(value)))
+      raise TypeError(f'Expected a PCollection, got {value} of type {type(value)}')
 
 
 class IncrementCounter(beam.PTransform):

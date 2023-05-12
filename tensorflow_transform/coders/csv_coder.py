@@ -73,8 +73,8 @@ class _FixedLenFeatureHandler:
 
     if len(flattened_values) != self._size:
       raise ValueError(
-          'FixedLenFeature "{}" got wrong number of values. Expected {} but '
-          'got {}'.format(self._name, self._size, len(flattened_values)))
+          f'FixedLenFeature "{self._name}" got wrong number of values. Expected {self._size} but got {len(flattened_values)}'
+      )
 
     if self._encoder:
       string_list[self._index] = self._encoder.encode_record(flattened_values)
@@ -254,6 +254,5 @@ class CsvCoder:
         feature_handler.encode_value(string_list,
                                      instance[feature_handler.name])
       except TypeError as e:
-        raise TypeError('{} while encoding feature "{}"'.format(
-            e, feature_handler.name))
+        raise TypeError(f'{e} while encoding feature "{feature_handler.name}"')
     return self._encoder.encode_record(string_list)

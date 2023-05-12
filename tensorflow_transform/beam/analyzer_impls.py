@@ -82,16 +82,15 @@ def maybe_add_empty_vocabulary_dummy(
                     _VocabTokenType]], dtype: Union[tf.dtypes.DType, str]
 ) -> List[KV[_VocabIndicatorType, _VocabTokenType]]:
   """Returns a list with a dummy token if counts list is empty."""
-  if not counts:
-    # TODO(b/62272023) remove this workaround if/when fixed on tensorflow.
-    # If the vocabulary is empty add a dummy value with count one so
-    # the tensorflow index operations don't fail to initialize with empty
-    # tensors downstream.
-    dummy_value = (b'49d0cd50-04bb-48c0-bc6f-5b575dce351a'
-                   if tf.dtypes.as_dtype(dtype) == tf.string else b'-1')
-    return [(1, dummy_value)]
-  else:
+  if counts:
     return counts
+  # TODO(b/62272023) remove this workaround if/when fixed on tensorflow.
+  # If the vocabulary is empty add a dummy value with count one so
+  # the tensorflow index operations don't fail to initialize with empty
+  # tensors downstream.
+  dummy_value = (b'49d0cd50-04bb-48c0-bc6f-5b575dce351a'
+                 if tf.dtypes.as_dtype(dtype) == tf.string else b'-1')
+  return [(1, dummy_value)]
 
 
 def _count_and_token_to_bytes(count: _VocabIndicatorType,
@@ -99,7 +98,7 @@ def _count_and_token_to_bytes(count: _VocabIndicatorType,
   # Converts `token` (bytes) to unicode first as otherwise the result will
   # look like b"1 b'real_string'" in PY3. We convert everything to bytes
   # afterwards to get b'1 real_string'.
-  return tf.compat.as_bytes('{} {}'.format(count, tf.compat.as_str_any(token)))
+  return tf.compat.as_bytes(f'{count} {tf.compat.as_str_any(token)}')
 
 
 class _OrderElementsFn(beam.DoFn):
@@ -157,12 +156,10 @@ def _ApplyThresholdsAndTopK(  # pylint: disable=invalid-name
       else:
         informativeness = float('inf')
         freq = values
-      if freq >= frequency_threshold and informativeness >= info_threshold:
-        return True
-      return False
+      return freq >= frequency_threshold and informativeness >= info_threshold
 
-    counts |= ('FilterByThresholds(%s)' % frequency_threshold >>
-               beam.Filter(filter_by_thresholds))
+    counts |= f'FilterByThresholds({frequency_threshold})' >> beam.Filter(
+        filter_by_thresholds)
   # If a tuple of multiple metrics, flatten to only the first. This is needed
   # for the case the accumulator has tracked informativeness and frequency.
   def flatten_to_single_metric(values):
@@ -193,23 +190,21 @@ def _ApplyThresholdsAndTopK(  # pylint: disable=invalid-name
 
       counts = (
           counts
-          | 'MapKeyToCountAndTerm' >> beam.Map(
-              lambda x: map_key_to_count_and_term(x, key_fn))
-          | 'CoverageTop(%s)' % top_k >> beam.combiners.Top.LargestPerKey(top_k)
-          | 'FlattenCoverageTerms' >> beam.FlatMap(lambda kv: kv[1]))
+          | 'MapKeyToCountAndTerm' >>
+          beam.Map(lambda x: map_key_to_count_and_term(x, key_fn))
+          | f'CoverageTop({top_k})' >> beam.combiners.Top.LargestPerKey(top_k)
+      ) | 'FlattenCoverageTerms' >> beam.FlatMap(lambda kv: kv[1])
     else:
       # LINT.IfChange(top_k_impl)
       # Stages that follow this block rely on the sorted order of `Top.Of`'s
       # output and fusion with the `FlattenList`. If changing this part of
       # implementation, either make sure that these hold true or adjust the
       # appropriate arg of `VocabularyOrderAndWrite` node.
-      counts = (
-          counts
-          | 'Top(%s)' % top_k >> beam.combiners.Top.Of(top_k)
-          | 'MaybeAddDummy' >> beam.Map(
-              maybe_add_empty_vocabulary_dummy, dtype=input_dtype)
-          | 'FlattenList' >> beam.FlatMap(lambda lst: lst))
-      # LINT.ThenChange(../analyzers.py:input_is_sorted)
+      counts = ((counts | f'Top({top_k})' >> beam.combiners.Top.Of(top_k))
+                | 'MaybeAddDummy' >> beam.Map(maybe_add_empty_vocabulary_dummy,
+                                              dtype=input_dtype)
+                | 'FlattenList' >> beam.FlatMap(lambda lst: lst))
+          # LINT.ThenChange(../analyzers.py:input_is_sorted)
 
   return counts
 
@@ -283,12 +278,10 @@ class _VocabularyAccumulateImpl(beam.PTransform):
       flatten_map_fn = _flatten_value_to_list
       combine_transform = beam.combiners.Count.PerElement()
 
-    result = (
-        pcoll
-        | 'FlattenTokensAndMaybeWeightsLabels' >> beam.FlatMap(flatten_map_fn)
-        | 'CountPerToken' >> combine_transform)
-
-    return result
+    return (pcoll
+            |
+            'FlattenTokensAndMaybeWeightsLabels' >> beam.FlatMap(flatten_map_fn)
+            | 'CountPerToken' >> combine_transform)
 
 
 @common.register_ptransform(analyzer_nodes.VocabularyCount)
@@ -650,11 +643,9 @@ def _calculate_mutual_information_for_feature_value(feature_and_accumulator,
         True, otherwise NaN.
       The total weighted sum for the feature value.
   """
-  # Compute the frequency of each label value.
-  global_label_counts = (
-      global_accumulator.mean * global_accumulator.weight *
-      global_accumulator.count)
   feature_value, current_accumulator = feature_and_accumulator
+  global_label_counts = (global_accumulator.mean * global_accumulator.weight *
+                         global_accumulator.count)
   total_label_counts = sum(global_label_counts)
   n = global_accumulator.count * global_accumulator.weight
   # TODO(b/168469757): Consider raising here once b/168469757 is resolved.
@@ -673,10 +664,8 @@ def _calculate_mutual_information_for_feature_value(feature_and_accumulator,
     return feature_value, (0, 0, x_i)
   if round(x_i) > round(n):
     raise ValueError(
-        'Frequency of token {} higher than number of records {} > {}'.format(
-            feature_value, x_i, n) +
-        ' This likely means you have provided tft.vocabulary with input that'
-        ' has repeated tokens per row, rather than a set representation.')
+        f'Frequency of token {feature_value} higher than number of records {x_i} > {n} This likely means you have provided tft.vocabulary with input that has repeated tokens per row, rather than a set representation.'
+    )
   for label_ix in range(len(global_label_counts)):
     y_i = global_label_counts[label_ix]
     if y_i == 0:
@@ -733,8 +722,10 @@ def _extract_sentinels(kv):
     A Beam TaggedOutout separating the sentinel and regular tokens.
   """
   token, _ = kv
-  if (token == tf_utils.GLOBAL_Y_COUNT_SENTINEL_STRING or
-      token == tf_utils.GLOBAL_Y_COUNT_SENTINEL_INT):
+  if token in [
+      tf_utils.GLOBAL_Y_COUNT_SENTINEL_STRING,
+      tf_utils.GLOBAL_Y_COUNT_SENTINEL_INT,
+  ]:
     # Throw away the sentinel token, since it's not needed.
     yield beam.pvalue.TaggedOutput('global', kv[1])
   else:
@@ -918,23 +909,19 @@ class _PackedCombinerWrapper(beam.combiners.TupleCombineFn):
     self._combiner_labels = [c.label for c in combiner_ops]
 
   def add_input(self, accumulator, element):
-    if self._is_combining_accumulators:
-      key, value = element
-      index = self._combiner_label_to_index[key]
-      accumulator[index] = self._combiners[index].add_input(
-          accumulator[index], value)
-      return accumulator
-    else:
+    if not self._is_combining_accumulators:
       return super().add_input(
           accumulator,
           [tuple(element[key] for key in keys) for keys in self._combiner_keys])
+    key, value = element
+    index = self._combiner_label_to_index[key]
+    accumulator[index] = self._combiners[index].add_input(
+        accumulator[index], value)
+    return accumulator
 
   def extract_output(self, accumulator):
     outputs = super().extract_output(accumulator)
-    return {
-        combiner_label: output
-        for combiner_label, output in zip(self._combiner_labels, outputs)
-    }
+    return dict(zip(self._combiner_labels, outputs))
 
 
 def _split_inputs_by_key(batch_values):
@@ -965,18 +952,16 @@ def _split_inputs_by_key(batch_values):
   keys = batch_values[0]
   if keys.ndim != 1:
     raise ValueError(
-        'keys for CombinePerKey should have rank 1, got shape {}'.format(
-            keys.shape))
+        f'keys for CombinePerKey should have rank 1, got shape {keys.shape}')
   for arg_index, arg_values in enumerate(batch_values[1:]):
     if arg_values.ndim < 1:
       raise ValueError(
-          'Argument {} for CombinePerKey should have rank >=1, '
-          'got shape {}'.format(arg_index, arg_values.shape))
+          f'Argument {arg_index} for CombinePerKey should have rank >=1, got shape {arg_values.shape}'
+      )
     if arg_values.shape[0] != keys.shape[0]:
       raise ValueError(
-          'Argument {} had shape {} whose first dimension was not equal to the '
-          'size of the keys vector ({})'.format(
-              arg_index, arg_values.shape, keys.shape[0]))
+          f'Argument {arg_index} had shape {arg_values.shape} whose first dimension was not equal to the size of the keys vector ({keys.shape[0]})'
+      )
 
   for instance_index, key in enumerate(keys):
     instance_args = [arg_values[instance_index]
@@ -1020,16 +1005,13 @@ def _merge_outputs_by_key(keys_and_outputs, outputs_dtype):
   for k, o in sorted_keys_and_outputs:
     key.append(k)
     outputs.append(o)
-  if not outputs:
-    outputs = [[]] * num_outputs
-  else:
-    outputs = list(zip(*outputs))
+  outputs = [[]] * num_outputs if not outputs else list(zip(*outputs))
   yield beam.pvalue.TaggedOutput('key',
                                  np.array(key, dtype=tf.string.as_numpy_dtype))
   if len(outputs) != num_outputs:
     raise ValueError(
-        'Analyzer has {} outputs but its implementation produced {} '
-        'values'.format(num_outputs, len(outputs)))
+        f'Analyzer has {num_outputs} outputs but its implementation produced {len(outputs)} values'
+    )
   for i, (output, dtype) in enumerate(zip(outputs, outputs_dtype)):
     yield beam.pvalue.TaggedOutput(str(i), np.array(output,
                                                     dtype=dtype.as_numpy_dtype))

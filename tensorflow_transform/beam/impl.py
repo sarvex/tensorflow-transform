@@ -192,11 +192,11 @@ class _RunMetaGraphDoFn(beam.DoFn):
 
         if set(input_tensor_names).difference(inputs.keys()):
           raise ValueError(
-              'Input tensor names contained tensors not in graph: %s' %
-              input_tensor_names)
+              f'Input tensor names contained tensors not in graph: {input_tensor_names}'
+          )
         if set(exclude_outputs).difference(outputs.keys()):
-          raise ValueError('Excluded outputs contained keys not in graph: %s' %
-                           exclude_outputs)
+          raise ValueError(
+              f'Excluded outputs contained keys not in graph: {exclude_outputs}')
         non_excluded_output_keys = sorted(
             set(outputs.keys()).difference(exclude_outputs))
         fetches = [outputs[key] for key in non_excluded_output_keys]
@@ -261,8 +261,8 @@ class _RunMetaGraphDoFn(beam.DoFn):
     schema_keys = self._get_input_tensor_names()
     if passthrough_keys - schema_keys != passthrough_keys:
       raise ValueError(
-          'passthrough_keys overlap with schema keys: {}, {}'.format(
-              passthrough_keys, schema_keys))
+          f'passthrough_keys overlap with schema keys: {passthrough_keys}, {schema_keys}'
+      )
     self._passthrough_keys = sorted(passthrough_keys)
 
     # The shared graph state handle allows us to load the graph once and share
@@ -340,10 +340,7 @@ class _RunMetaGraphDoFn(beam.DoFn):
         ]
         outputs_list = self._graph_state.callable_get_outputs(*feed_list)
         assert len(self._graph_state.outputs_tensor_keys) == len(outputs_list)
-        result = {
-            key: value for key, value in zip(
-                self._graph_state.outputs_tensor_keys, outputs_list)
-        }
+        result = dict(zip(self._graph_state.outputs_tensor_keys, outputs_list))
       else:
         result = self._graph_state.callable_get_outputs(feed_dict)
         assert len(self._graph_state.outputs_tensor_keys) == len(result)
@@ -447,8 +444,8 @@ def _convert_and_unbatch_to_instance_dicts(batch_dict, schema,
       data = (data_set.pop(),) * len(result)
     if len(data) != len(result):
       raise ValueError(
-          'Cannot pass-through data when input and output batch sizes '
-          'are different ({} vs. {})'.format(len(data), len(result)))
+          f'Cannot pass-through data when input and output batch sizes are different ({len(data)} vs. {len(result)})'
+      )
     for instance, instance_data in zip(result, data):
       instance[key] = instance_data
 
@@ -488,15 +485,13 @@ def _convert_to_record_batch(
     if len(data) not in (batch_size, 1):
       # The passthrough column should be of list<primitive> type with each
       # sub-list being either null or of length 1.
-      data_set = set(
-          None if elem is None else elem[0] for elem in data.to_pylist())
-      if len(data_set) == 1:
-        elem = data_set.pop()
-        data = pa.array([None if elem is None else [elem]], type=data.type)
-      else:
+      data_set = {None if elem is None else elem[0] for elem in data.to_pylist()}
+      if len(data_set) != 1:
         raise ValueError(
-            'Cannot pass-through data when input and output batch sizes '
-            'are different ({} vs. {})'.format(len(data), batch_size))
+            f'Cannot pass-through data when input and output batch sizes are different ({len(data)} vs. {batch_size})'
+        )
+      elem = data_set.pop()
+      data = pa.array([None if elem is None else [elem]], type=data.type)
     if len(data) == batch_size:
       arrow_schema = arrow_schema.append(input_metadata.arrow_schema.field(key))
       arrow_columns.append(data)
@@ -742,15 +737,14 @@ class _ExtractInputForSavedModelImpl(beam.PTransform):
     # TODO(b/151921205): we have to do an identity map for unmodified
     # PCollections below because otherwise we get an error from beam.
     identity_map = 'Identity' >> beam.Map(lambda x: x)
-    if self._dataset_key.is_flattened_dataset_key():
-      if self._flat_pcollection:
-        return self._flat_pcollection | identity_map
-      else:
-        return (
-            list(self._pcollection_dict.values())
-            | 'FlattenAnalysisInputs' >> beam.Flatten(pipeline=pbegin.pipeline))
-    else:
+    if not self._dataset_key.is_flattened_dataset_key():
       return self._pcollection_dict[self._dataset_key] | identity_map
+    if self._flat_pcollection:
+      return self._flat_pcollection | identity_map
+    else:
+      return (
+          list(self._pcollection_dict.values())
+          | 'FlattenAnalysisInputs' >> beam.Flatten(pipeline=pbegin.pipeline))
 
 
 @beam_common.register_ptransform(beam_nodes.ApplySavedModel)
@@ -972,15 +966,10 @@ class _AnalyzeDatasetCommon(beam.PTransform):
     # flat_data should be None when performing analysis with cache.
     if flat_data is not None:
       pvalues.append(flat_data)
-    for value in data_dict.values():
-      # Dataset PCollections can be None if it's fully covered by cache and so
-      # there's no need in reading it.
-      if value is not None:
-        pvalues.append(value)
+    pvalues.extend(value for value in data_dict.values() if value is not None)
     if dataset_cache_dict is not None:
       for cache_dict in dataset_cache_dict.values():
-        for cache_pcoll in cache_dict.values():
-          pvalues.append(cache_pcoll)
+        pvalues.extend(iter(cache_dict.values()))
     if isinstance(metadata, beam_metadata_io.BeamDatasetMetadata):
       pvalues.append(metadata.deferred_metadata)
     assert (self.pipeline is not None or
@@ -1001,14 +990,13 @@ class _AnalyzeDatasetCommon(beam.PTransform):
     """
     (flattened_pcoll, input_values_pcoll_dict, dataset_cache_dict,
      input_metadata) = dataset
-    input_values_pcoll_dict = input_values_pcoll_dict or dict()
+    input_values_pcoll_dict = input_values_pcoll_dict or {}
 
     if isinstance(input_metadata, dataset_metadata.DatasetMetadata):
       if Context.get_passthrough_keys():
-        raise ValueError('passthrough_keys is set to {} but it is not supported'
-                         'with instance dicts + DatasetMetadata input. Follow '
-                         'the guide to switch to the TFXIO format.'.format(
-                             Context.get_passthrough_keys()))
+        raise ValueError(
+            f'passthrough_keys is set to {Context.get_passthrough_keys()} but it is not supportedwith instance dicts + DatasetMetadata input. Follow the guide to switch to the TFXIO format.'
+        )
       tf.compat.v1.logging.warning(
           'You are passing instance dicts and DatasetMetadata to TFT which '
           'will not provide optimal performance. Consider following the TFT '
@@ -1021,8 +1009,7 @@ class _AnalyzeDatasetCommon(beam.PTransform):
       for key in input_values_pcoll_dict.keys():
         if input_values_pcoll_dict[key] is not None:
           input_values_pcoll_dict[key] |= (
-              'InstanceDictToRecordBatch[{}]'.format(key) >>
-              to_tfxio_ptransform)
+              f'InstanceDictToRecordBatch[{key}]' >> to_tfxio_ptransform)
     else:
       input_tensor_adapter_config = input_metadata
 
@@ -1131,10 +1118,9 @@ class _AnalyzeDatasetCommon(beam.PTransform):
           structured_outputs,
           concrete_metadata_fn,
           evaluate_schema_overrides=False)
-    deferred_metadata = (
-        transform_fn_pcoll
-        | 'ComputeDeferredMetadata[compat_v1={}]'.format(self._use_tf_compat_v1)
-        >> beam.Map(_infer_metadata_from_saved_model, self._use_tf_compat_v1))
+    deferred_metadata = transform_fn_pcoll | (
+        f'ComputeDeferredMetadata[compat_v1={self._use_tf_compat_v1}]' >>
+        beam.Map(_infer_metadata_from_saved_model, self._use_tf_compat_v1))
 
     full_metadata = beam_metadata_io.BeamDatasetMetadata(
         dataset_metadata.DatasetMetadata(schema=schema), deferred_metadata,
@@ -1213,7 +1199,7 @@ class AnalyzeDatasetWithCache(_AnalyzeDatasetCommon):
     return dataset, pvalues
 
   def expand(self, dataset):
-    input_values_pcoll_dict = dataset[1] or dict()
+    input_values_pcoll_dict = dataset[1] or {}
     analyzer_cache.validate_dataset_keys(input_values_pcoll_dict.keys())
     return super().expand(self._make_parent_dataset(dataset))
 
@@ -1391,10 +1377,9 @@ class TransformDataset(beam.PTransform):
         dataset_and_transform_fn)
     if isinstance(input_metadata, dataset_metadata.DatasetMetadata):
       if Context.get_passthrough_keys():
-        raise ValueError('passthrough_keys is set to {} but it is not '
-                         'supported with instance dicts + DatasetMetadata '
-                         'input. Follow the guide to switch to the TFXIO '
-                         'format.'.format(Context.get_passthrough_keys()))
+        raise ValueError(
+            f'passthrough_keys is set to {Context.get_passthrough_keys()} but it is not supported with instance dicts + DatasetMetadata input. Follow the guide to switch to the TFXIO format.'
+        )
       tf.compat.v1.logging.warning(
           'You are passing instance dicts and DatasetMetadata to TFT which '
           'will not provide optimal performance. Consider following the TFT '
@@ -1406,7 +1391,6 @@ class TransformDataset(beam.PTransform):
     else:
       input_tensor_adapter_config = input_metadata
 
-    # If exclude_outputs is set, update the output metadata.
     if self._exclude_outputs is not None:
       if isinstance(output_metadata, beam_metadata_io.BeamDatasetMetadata):
         new_metadata = _remove_columns_from_metadata(

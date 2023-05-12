@@ -34,13 +34,11 @@ def _choose_meta_graph_def_internal(saved_model, tags):
     extract signature-defs, collection-defs, etc. If tags cannot be found,
     returns None.
   """
-  result = None
-  for meta_graph_def in saved_model.meta_graphs:
-    if set(meta_graph_def.meta_info_def.tags) == set(tags):
-      result = meta_graph_def
-      break
-
-  return result
+  return next(
+      (meta_graph_def for meta_graph_def in saved_model.meta_graphs
+       if set(meta_graph_def.meta_info_def.tags) == set(tags)),
+      None,
+  )
 
 
 def choose_meta_graph_def(saved_model):
@@ -74,8 +72,8 @@ def choose_meta_graph_def_and_raise(saved_model):
 
   if result is None:
     raise RuntimeError(
-        'MetaGraphDef associated with tags {} could not be found in SavedModel'
-        .format(constants.TRANSFORM_TAG))
+        f'MetaGraphDef associated with tags {constants.TRANSFORM_TAG} could not be found in SavedModel'
+    )
 
   return result
 

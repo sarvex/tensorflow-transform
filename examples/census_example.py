@@ -149,8 +149,9 @@ def train_and_evaluate(working_dir,
   # Fit the model using the default optimizer.
   train_input_fn = _make_training_input_fn(
       tf_transform_output,
-      os.path.join(working_dir, common.TRANSFORMED_TRAIN_DATA_FILEBASE + '*'),
-      batch_size=common.TRAIN_BATCH_SIZE)
+      os.path.join(working_dir, f'{common.TRANSFORMED_TRAIN_DATA_FILEBASE}*'),
+      batch_size=common.TRAIN_BATCH_SIZE,
+  )
   estimator.train(
       input_fn=train_input_fn,
       max_steps=common.TRAIN_NUM_EPOCHS * num_train_instances /
@@ -159,8 +160,9 @@ def train_and_evaluate(working_dir,
   # Evaluate model on test dataset.
   eval_input_fn = _make_training_input_fn(
       tf_transform_output,
-      os.path.join(working_dir, common.TRANSFORMED_TEST_DATA_FILEBASE + '*'),
-      batch_size=1)
+      os.path.join(working_dir, f'{common.TRANSFORMED_TEST_DATA_FILEBASE}*'),
+      batch_size=1,
+  )
 
   # Export the model.
   serving_input_fn = _make_serving_input_fn(tf_transform_output)

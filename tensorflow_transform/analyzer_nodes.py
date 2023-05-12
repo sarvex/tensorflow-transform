@@ -61,7 +61,7 @@ def _make_label(cls: Type[nodes.OperationDef],
                 label: Optional[str] = None) -> str:
   if label is None:
     scope = tf.compat.v1.get_default_graph().get_name_scope()
-    label = '{}[{}]'.format(cls.__name__, scope)
+    label = f'{cls.__name__}[{scope}]'
   return sanitize_label(label)
 
 
@@ -79,12 +79,12 @@ class TensorInfo(
 
   def __new__(cls, dtype, shape, temporary_asset_value):
     if not isinstance(dtype, tf.DType):
-      raise TypeError('dtype must be a TensorFlow dtype, got {}'.format(dtype))
+      raise TypeError(f'dtype must be a TensorFlow dtype, got {dtype}')
     if temporary_asset_value is not None and not isinstance(
         temporary_asset_value, bytes):
       raise TypeError(
-          'temporary_asset_value should be bytes or None, got {}'.format(
-              temporary_asset_value))
+          f'temporary_asset_value should be bytes or None, got {temporary_asset_value}'
+      )
     return super(TensorInfo, cls).__new__(
         cls,
         dtype=dtype,
@@ -115,8 +115,8 @@ class TensorSource(
   def __new__(cls, tensors):
     for tensor in tensors:
       if not isinstance(tensor, tf.Tensor):
-        raise TypeError('tensor must be a Tensor, got {} of type {}'.format(
-            tensor, type(tensor)))
+        raise TypeError(
+            f'tensor must be a Tensor, got {tensor} of type {type(tensor)}')
     return super(TensorSource, cls).__new__(
         cls, tensors=tensors, label=_make_label(cls))
 
@@ -253,16 +253,15 @@ def _bind_future_as_tensor_v2(
   if (evaluated_replacements is not None and
       analyzer_name in evaluated_replacements):
     replaced_result = evaluated_replacements[analyzer_name]
-    if is_asset_filepath:
-      graph.add_to_collection(tf.compat.v1.GraphKeys.ASSET_FILEPATHS,
-                              replaced_result)
-      return replaced_result
-    else:
+    if not is_asset_filepath:
       # Without the identity wrapper some V2 tests fail with AttributeError:
       # Tensor.name is meaningless when eager execution is enabled.
       # TODO(b/149997088): Remove the identity wrapper once we no longer rely on
       # tensor names.
       return tf.identity(replaced_result)
+    graph.add_to_collection(tf.compat.v1.GraphKeys.ASSET_FILEPATHS,
+                            replaced_result)
+    return replaced_result
   else:
     graph.add_to_collection(TENSOR_REPLACEMENTS, tensor_sink)
     eager_asset_path = temporary_analyzer_info.eager_asset_path
@@ -306,7 +305,7 @@ class Combiner:
   """
 
   def __repr__(self):
-    return '<{}>'.format(self.__class__.__name__)
+    return f'<{self.__class__.__name__}>'
 
   def create_accumulator(self):
     """Return a fresh, empty accumulator.
@@ -376,7 +375,7 @@ class CacheCoder(metaclass=abc.ABCMeta):
   """A coder iterface for encoding and decoding cache items."""
 
   def __repr__(self):
-    return '<{}>'.format(self.__class__.__name__)
+    return f'<{self.__class__.__name__}>'
 
   @abc.abstractmethod
   def encode_cache(self, cache):
@@ -391,9 +390,7 @@ class JsonNumpyCacheCoder(CacheCoder):
   """An accumulator cache coder that can handle lists."""
 
   def _convert_numpy_dtype(self, x):
-    if hasattr(x, 'tolist'):
-      return x.tolist()
-    return x
+    return x.tolist() if hasattr(x, 'tolist') else x
 
   def encode_cache(self, accumulator):
     if isinstance(accumulator, (list, tuple)):
@@ -552,9 +549,7 @@ class _CombinerPerKeyAccumulatorCoder(CacheCoder):
     super().__init__()
 
   def __repr__(self):
-    return '<{}[{}[{}]]>'.format(self.__class__.__name__,
-                                 repr(self._vocabulary_coder),
-                                 repr(self._combiner_coder))
+    return f'<{self.__class__.__name__}[{repr(self._vocabulary_coder)}[{repr(self._combiner_coder)}]]>'
 
   def encode_cache(self, accumulator):
     key, value = accumulator
@@ -747,17 +742,21 @@ class _BaseKVCoder(CacheCoder):
     token, value = accumulator
     len_token, len_value = len(token), len(value)
     return struct.pack(
-        '{}{}s{}s'.format(self._lengths_prefix_format, len_token, len_value),
-        len_token, len_value, token, value)
+        f'{self._lengths_prefix_format}{len_token}s{len_value}s',
+        len_token,
+        len_value,
+        token,
+        value,
+    )
 
   def decode_cache(self, encoded_accumulator):
     (len_token, len_value) = struct.unpack_from(
         self._lengths_prefix_format,
         encoded_accumulator[:self._lengths_prefix_length])
-    accumulator = struct.unpack_from(
-        '{}s{}s'.format(len_token, len_value),
-        encoded_accumulator[self._lengths_prefix_length:])
-    return accumulator
+    return struct.unpack_from(
+        f'{len_token}s{len_value}s',
+        encoded_accumulator[self._lengths_prefix_length:],
+    )
 
 
 class _VocabularyAccumulatorCoder(_BaseKVCoder):

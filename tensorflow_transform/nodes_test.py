@@ -237,7 +237,8 @@ node [shape=Mrecord];
 "Swap[0]":0 -> "Swap[1]";
 }
 """,
-        msg='Result dot graph is:\n{}'.format(dot_string))
+        msg=f'Result dot graph is:\n{dot_string}',
+    )
 
 
 if __name__ == '__main__':

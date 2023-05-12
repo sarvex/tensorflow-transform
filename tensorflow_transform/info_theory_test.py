@@ -31,12 +31,11 @@ def _make_hypergeometric_pmf_sum_up_to_one_parameters():
   assert range_length % num_chunks == 0
   chunk_size = int(range_length / num_chunks)
   sub_ranges = [(x, x + chunk_size) for x in range(start, end, chunk_size)]
-  return [  # pylint: disable=g-complex-comprehension
-      dict(
-          testcase_name='{}_to_{}'.format(a, b),
-          test_range=range(a, b),
-          n=end,
-          y_j=start) for a, b in sub_ranges
+  return [
+      dict(testcase_name=f'{a}_to_{b}',
+           test_range=range(a, b),
+           n=end,
+           y_j=start) for a, b in sub_ranges
   ]
 
 

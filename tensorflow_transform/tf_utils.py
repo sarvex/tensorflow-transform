@@ -73,7 +73,7 @@ def copy_tensors(tensors):
 
 
 def _copy_tensor(tensor):
-  return tf.identity(tensor, name='{}_copy'.format(tensor.op.name))
+  return tf.identity(tensor, name=f'{tensor.op.name}_copy')
 
 
 def _copy_tensor_or_composite_tensor(tensor):
@@ -114,12 +114,11 @@ def reduce_batch_weighted_counts(
     x = x.flat_values
   flat_x = tf.reshape(x, [-1])
   if weights is None:
-    if force:
-      unique, _, counts = tf.unique_with_counts(flat_x)
-      return ReducedBatchWeightedCounts(unique, None, None, counts)
-    else:
+    if not force:
       # TODO(b/112916494): Always do batch wise reduction once possible.
       return ReducedBatchWeightedCounts(flat_x, None, None, None)
+    unique, _, counts = tf.unique_with_counts(flat_x)
+    return ReducedBatchWeightedCounts(unique, None, None, counts)
   # TODO(b/134075780): Revisit expected weights shape when input is composite.
   x, weights = assert_same_shape(x, weights)
   weights = tf.reshape(weights, [-1])
@@ -531,10 +530,11 @@ def apply_bucketize_op(x: tf.Tensor,
   """
   if remove_leftmost_boundary:
     boundaries = boundaries[:, 1:]
-  bucket_indices = tf.cast(tf.raw_ops.BoostedTreesBucketize(
-      float_values=[x],
-      bucket_boundaries=tf.unstack(boundaries))[0], dtype=tf.int64)
-  return bucket_indices
+  return tf.cast(
+      tf.raw_ops.BoostedTreesBucketize(
+          float_values=[x], bucket_boundaries=tf.unstack(boundaries))[0],
+      dtype=tf.int64,
+  )
 
 
 # TODO(b/62379925): Remove this once all supported TF versions have
@@ -547,8 +547,8 @@ class _DatasetInitializerCompat(
   def __init__(self, *args, **kwargs):
     if self.__class__.mro()[1] == object:
       raise NotImplementedError(
-          'Cannot create a DatasetInitializer with this version of TF: {}'
-          .format(tf.__version__))
+          f'Cannot create a DatasetInitializer with this version of TF: {tf.__version__}'
+      )
     super().__init__(*args, **kwargs)
 
   def initialize(self, table):
@@ -576,7 +576,7 @@ def _make_tfrecord_vocabulary_dataset(vocab_path,
                                       has_indicator=False):
   """Makes a (key, value) dataset from a compressed tfrecord file."""
   if not (value_dtype.is_floating or value_dtype.is_integer):
-    raise ValueError('value_dtype must be numeric. Got: %s' % value_dtype)
+    raise ValueError(f'value_dtype must be numeric. Got: {value_dtype}')
   dataset = tf.data.TFRecordDataset(vocab_path, compression_type='GZIP')
   key_dtype_fn = _make_vocab_entry_to_dtype_fn(key_dtype)
   value_dtype_fn = _make_vocab_entry_to_dtype_fn(value_dtype)
@@ -1228,10 +1228,10 @@ def reduce_batch_count_mean_and_var_per_key(
     infinite input values are ignored.
   """
 
-  if isinstance(x, (tf.SparseTensor, tf.RaggedTensor)):
-    if not reduce_instance_dims:
-      raise NotImplementedError(
-          'Mean and var per key only support reduced dims for CompositeTensors')
+  if (isinstance(x, (tf.SparseTensor, tf.RaggedTensor))
+      and not reduce_instance_dims):
+    raise NotImplementedError(
+        'Mean and var per key only support reduced dims for CompositeTensors')
 
   x, key = _validate_and_get_dense_value_key_inputs(x, key)
 
@@ -1339,7 +1339,7 @@ def _serialize_feature(values):
         'int64_list': _encode_proto({'value': values}, 'tensorflow.Int64List')
     }
   else:
-    raise ValueError('Cannot encode values of dtype {}'.format(values.dtype))
+    raise ValueError(f'Cannot encode values of dtype {values.dtype}')
   return _encode_proto(values_dict, 'tensorflow.Feature')
 
 
@@ -1436,7 +1436,7 @@ def reduce_batch_minus_min_and_max(
   if x.dtype in (tf.uint8, tf.uint16, tf.int16):
     x = tf.cast(x, tf.int32)
 
-  elif x.dtype == tf.uint32 or x.dtype == tf.uint64:
+  elif x.dtype in [tf.uint32, tf.uint64]:
     raise TypeError('Tensor type %r is not supported' % x.dtype)
 
   if reduce_instance_dims:
@@ -1453,15 +1453,14 @@ def reduce_batch_minus_min_and_max(
     return _sparse_minus_reduce_min_and_reduce_max(x)
 
   x_batch_max = tf.reduce_max(input_tensor=x, axis=0)
-  if isinstance(x, tf.RaggedTensor):
-    x_batch_minus_min = tf.reduce_max(input_tensor=tf.math.negative(x), axis=0)
-    missing_value = _get_missing_value(x.dtype)
-    return (x_batch_minus_min.to_tensor(default_value=missing_value),
-            x_batch_max.to_tensor(default_value=missing_value))
-  else:
+  if not isinstance(x, tf.RaggedTensor):
     # TODO(iindyk): switch to `tf.math.negative` when analyzer cache will get
     # invalidated next time.
     return (tf.reduce_max(input_tensor=0 - x, axis=0), x_batch_max)
+  x_batch_minus_min = tf.reduce_max(input_tensor=tf.math.negative(x), axis=0)
+  missing_value = _get_missing_value(x.dtype)
+  return (x_batch_minus_min.to_tensor(default_value=missing_value),
+          x_batch_max.to_tensor(default_value=missing_value))
 
 
 def reduce_batch_minus_min_and_max_per_key(
@@ -1481,10 +1480,10 @@ def reduce_batch_minus_min_and_max_per_key(
   Returns:
     A 3-tuple containing the `Tensor`s (key_vocab, min_per_key, max_per_key).
   """
-  if x.dtype == tf.uint8 or x.dtype == tf.uint16:
+  if x.dtype in [tf.uint8, tf.uint16]:
     x = tf.cast(x, tf.int32)
 
-  elif x.dtype == tf.uint32 or x.dtype == tf.uint64:
+  elif x.dtype in [tf.uint32, tf.uint64]:
     raise TypeError('Tensor type %r is not supported' % x.dtype)
 
   x, key = _validate_and_get_dense_value_key_inputs(x, key)
@@ -1528,11 +1527,10 @@ def _get_asset_analyzer_output_and_control_dependency(
     return asset_filepath, control_dependency
 
   if not isinstance(asset_filepath, tf.Tensor):
-    raise ValueError('Expected asset_filepath ({}) to be a tf.Tensor.'.format(
-        asset_filepath))
-  eager_asset_filepath = dict(asset_replacements_coll).get(
-      hashable_tensor_or_op(asset_filepath), None)
-  if eager_asset_filepath:
+    raise ValueError(
+        f'Expected asset_filepath ({asset_filepath}) to be a tf.Tensor.')
+  if eager_asset_filepath := dict(asset_replacements_coll).get(
+      hashable_tensor_or_op(asset_filepath), None):
     control_dependency = asset_filepath
     asset_filepath = eager_asset_filepath
   return asset_filepath, control_dependency

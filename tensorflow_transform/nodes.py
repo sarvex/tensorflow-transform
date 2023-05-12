@@ -48,13 +48,13 @@ class ValueNode(
   def __init__(self, parent_operation, value_index: int):
     if not isinstance(parent_operation, OperationNode):
       raise TypeError(
-          'parent_operation must be a OperationNode, got {} of type {}'.format(
-              parent_operation, type(parent_operation)))
+          f'parent_operation must be a OperationNode, got {parent_operation} of type {type(parent_operation)}'
+      )
     num_outputs = parent_operation.operation_def.num_outputs
-    if not (0 <= value_index and value_index < num_outputs):
+    if not 0 <= value_index < num_outputs:
       raise ValueError(
-          'value_index was {} but parent_operation had {} outputs'.format(
-              value_index, num_outputs))
+          f'value_index was {value_index} but parent_operation had {num_outputs} outputs'
+      )
     super().__init__()
 
   def __iter__(self):
@@ -127,21 +127,18 @@ class OperationNode:
     self._inputs = inputs
     if not isinstance(operation_def, OperationDef):
       raise TypeError(
-          'operation_def must be an OperationDef, got {} of type {}'.format(
-              operation_def, type(operation_def)))
+          f'operation_def must be an OperationDef, got {operation_def} of type {type(operation_def)}'
+      )
     if not isinstance(inputs, tuple):
-      raise TypeError(
-          'inputs must be a tuple, got {} of type {}'.format(
-              inputs, type(inputs)))
+      raise TypeError(f'inputs must be a tuple, got {inputs} of type {type(inputs)}')
     for value_node in inputs:
       if not isinstance(value_node, ValueNode):
         raise TypeError(
-            'Inputs to Operation must be a ValueNode, got {} of type {}'.format(
-                value_node, type(value_node)))
+            f'Inputs to Operation must be a ValueNode, got {value_node} of type {type(value_node)}'
+        )
 
   def __repr__(self):
-    return '{}(operation_def={}, inputs={})'.format(
-        self.__class__.__name__, self.operation_def, self.inputs)
+    return f'{self.__class__.__name__}(operation_def={self.operation_def}, inputs={self.inputs})'
 
   @property
   def operation_def(self):
@@ -181,8 +178,8 @@ def apply_multi_output_operation(operation_def_cls, *args, **kwargs):
   try:
     return OperationNode(operation_def_cls(**kwargs), args).outputs
   except TypeError as e:
-    raise RuntimeError('Failed to apply Operation {}, with error: {}'.format(
-        operation_def_cls, str(e)))
+    raise RuntimeError(
+        f'Failed to apply Operation {operation_def_cls}, with error: {str(e)}')
 
 
 class Visitor(metaclass=abc.ABCMeta):
@@ -265,7 +262,7 @@ class Traverser:
       cycle = self._stack[self._stack.index(operation):] + [operation]
       # For readability, just print the label of `operation_def`s
       cycle = ', '.join(operation.operation_def.label for operation in cycle)
-      raise AssertionError('Cycle detected: [{}]'.format(cycle))
+      raise AssertionError(f'Cycle detected: [{cycle}]')
     self._stack.append(operation)
     input_values = tuple(map(self._maybe_visit_value_node, operation.inputs))
     assert operation is self._stack.pop()
@@ -283,15 +280,13 @@ class Traverser:
     if (not output_iterable or isinstance(output_values,
                                           (ValueNode, OperationDef))):
       raise ValueError(
-          'When running operation {} expected visitor to return a tuple, got '
-          '{} of type {}'.format(operation.operation_def.label, output_values,
-                                 type(output_values)))
+          f'When running operation {operation.operation_def.label} expected visitor to return a tuple, got {output_values} of type {type(output_values)}'
+      )
     # DoOutputsTuple doesn't work with len().
     if hasattr(output_values, '__len__') and len(output_values) != len(outputs):
       raise ValueError(
-          'Operation {} has {} outputs but visitor returned {} values: '
-          '{}'.format(operation.operation_def, len(outputs),
-                      len(output_values), output_values))
+          f'Operation {operation.operation_def} has {len(outputs)} outputs but visitor returned {len(output_values)} values: {output_values}'
+      )
 
     for output, value in zip(outputs, output_values):
       self._visitor.validate_value(value)
@@ -322,13 +317,13 @@ class _PrintGraphVisitor(Visitor):
     num_outputs = operation_def.num_outputs
     node_name = operation_def.label
 
-    display_label_rows = ([operation_def.__class__.__name__] + [
-        _escape('%s: %s' % (field, operation_def.get_field_str(field)))
+    display_label_rows = [operation_def.__class__.__name__] + [
+        _escape(f'{field}: {operation_def.get_field_str(field)}')
         for field in operation_def._fields
-    ])
+    ]
 
     if operation_def.is_partitionable:
-      display_label_rows.append('partitionable: %s' % True)
+      display_label_rows.append('partitionable: True')
 
     if num_outputs != 1:
       ports = '|'.join('<{0}>{0}'.format(idx) for idx in range(num_outputs))
@@ -346,7 +341,7 @@ class _PrintGraphVisitor(Visitor):
       return (node,)
     else:
       return tuple(
-          pydot.Node(obj_dict={'name': '"{}":{}'.format(node_name, idx)})
+          pydot.Node(obj_dict={'name': f'"{node_name}":{idx}'})
           for idx in range(num_outputs))
 
   def validate_value(self, value: pydot.Node):

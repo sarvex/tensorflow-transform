@@ -30,17 +30,20 @@ from tensorflow_metadata.proto.v0 import schema_pb2
 
 
 def _construct_test_bucketization_tight_sequence_parameters():
-  # (test_inputs, expected_boundaries, dtype, num_buckets, num_expected_buckets)
-  args = (
+  return (
       ([1, 2, 3, 4], np.array([[3]], np.float32), tf.int32, 2, 2),
       ([1, 2, 3, 4], np.array([[2, 3]], np.float32), tf.int32, 3, 3),
       ([1, 2, 3, 4], np.array([[2, 3, 4]], np.float32), tf.int32, 4, 4),
       ([1, 2, 3, 4], np.array([[1, 2, 3, 4]], np.float32), tf.int32, 5, 5),
       ([1, 2, 3, 4], np.array([[1, 2, 3, 3, 4]], np.float32), tf.int32, 6, 6),
-      ([1, 2, 3, 4], np.array([[1, 1, 2, 2, 3, 3, 3, 4, 4]],
-                              np.float32), tf.int32, 10, 10),
+      (
+          [1, 2, 3, 4],
+          np.array([[1, 1, 2, 2, 3, 3, 3, 4, 4]], np.float32),
+          tf.int32,
+          10,
+          10,
+      ),
   )
-  return args
 
 
 def _construct_test_bucketization_parameters():
@@ -106,13 +109,12 @@ def _compute_simple_per_key_bucket(val, key):
       return 1
     else:
       return 2
+  elif val < 66:
+    return 0
+  elif val < 83:
+    return 1
   else:
-    if val < 66:
-      return 0
-    elif val < 83:
-      return 1
-    else:
-      return 2
+    return 2
 
 
 _BUCKETIZE_COMPOSITE_INPUT_TEST_CASES = [

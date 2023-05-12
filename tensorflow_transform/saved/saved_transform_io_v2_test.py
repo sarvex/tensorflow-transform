@@ -469,8 +469,8 @@ class SavedTransformIOV2Test(test_case.TransformTestCase):
       outputs = saved_model_loader.apply_transform_model(inputs)
       self.assertEqual(12, outputs['output'])
 
-      new_export_path = os.path.join(
-          tempfile.mkdtemp(dir=self.get_temp_dir()), 'export_' + str(it))
+      new_export_path = os.path.join(tempfile.mkdtemp(dir=self.get_temp_dir()),
+                                     f'export_{str(it)}')
       tf.saved_model.save(saved_model_loader._imported, new_export_path)
       shutil.rmtree(export_path)
       export_path = new_export_path
@@ -617,7 +617,7 @@ class SavedTransformIOV2Test(test_case.TransformTestCase):
         tf.constant([2.0], dtype=tf.float32),
         tf.constant([3.0], dtype=tf.float32)
     ]
-    input_kwargs = {k: v for k, v in zip(input_keys, inputs)}
+    input_kwargs = dict(zip(input_keys, inputs))
     expected_output = 5.0
     restored_function, _, _ = (
         saved_transform_io_v2._restore_from_v1_saved_model(

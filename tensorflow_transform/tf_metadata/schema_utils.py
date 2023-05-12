@@ -198,8 +198,8 @@ def _feature_from_feature_spec(spec, name, domains):
   if isinstance(spec, tf.io.FixedLenFeature):
     if spec.default_value is not None:
       raise ValueError(
-          'feature "{}" had default_value {}, but FixedLenFeature must have '
-          'default_value=None'.format(name, spec.default_value))
+          f'feature "{name}" had default_value {spec.default_value}, but FixedLenFeature must have default_value=None'
+      )
     dims = [schema_pb2.FixedShape.Dim(size=size) for size in spec.shape]
     feature = schema_pb2.Feature(
         name=name,
@@ -208,9 +208,9 @@ def _feature_from_feature_spec(spec, name, domains):
   elif isinstance(spec, tf.io.VarLenFeature):
     feature = schema_pb2.Feature(name=name)
   else:
-    raise TypeError('Spec for feature "{}" was {} of type {}, expected a '
-                    'FixedLenFeature, VarLenFeature or SparseFeature'.format(
-                        name, spec, type(spec)))
+    raise TypeError(
+        f'Spec for feature "{name}" was {spec} of type {type(spec)}, expected a FixedLenFeature, VarLenFeature or SparseFeature'
+    )
 
   _set_type(name, feature, spec.dtype)
   _set_domain(name, feature, domains.get(name))
@@ -226,7 +226,7 @@ def _set_type(name, feature, dtype):
   elif dtype == tf.string:
     feature.type = schema_pb2.BYTES
   else:
-    raise ValueError('Feature "{}" has invalid dtype {}'.format(name, dtype))
+    raise ValueError(f'Feature "{name}" has invalid dtype {dtype}')
 
 
 def _set_domain(name, feature, domain):
@@ -241,7 +241,7 @@ def _set_domain(name, feature, domain):
   elif isinstance(domain, schema_pb2.FloatDomain):
     feature.float_domain.CopyFrom(domain)
   else:
-    raise ValueError('Feature "{}" has invalid domain {}'.format(name, domain))
+    raise ValueError(f'Feature "{name}" has invalid domain {domain}')
 
 
 SchemaAsFeatureSpecResult = tfx_namedtuple.TypedNamedTuple(
@@ -278,10 +278,8 @@ def schema_as_feature_spec(
   for feature in schema_proto.feature:
     if RAGGED_TENSOR_TAG in feature.annotation.tag:
       raise ValueError(
-          'Feature "{}" had tag "{}".  Features represented by a '
-          'RaggedTensor cannot be serialized/deserialized to Example proto or '
-          'other formats, and cannot have a feature spec generated for '
-          'them.'.format(feature.name, RAGGED_TENSOR_TAG))
+          f'Feature "{feature.name}" had tag "{RAGGED_TENSOR_TAG}".  Features represented by a RaggedTensor cannot be serialized/deserialized to Example proto or other formats, and cannot have a feature spec generated for them.'
+      )
 
   if schema_utils_legacy.get_generate_legacy_feature_spec(schema_proto):
     return _legacy_schema_as_feature_spec(schema_proto)
@@ -311,8 +309,8 @@ def schema_as_feature_spec(
     for name, tensor_representation in tensor_representations.items():
       if name in feature_by_name:
         raise ValueError(
-            'Ragged TensorRepresentation name "{}" conflicts with a different '
-            'feature in the same schema.'.format(name))
+            f'Ragged TensorRepresentation name "{name}" conflicts with a different feature in the same schema.'
+        )
       (feature_spec[name], domains[name]) = (
           _ragged_tensor_representation_as_feature_spec(name,
                                                         tensor_representation,
@@ -396,8 +394,8 @@ def pop_ragged_source_columns(
                                              column_path.steps()[0]))
     if row_length_feature.type != schema_pb2.FeatureType.INT:
       raise ValueError(
-          'Row length feature "{}" is not an integer feature.'.format(
-              row_length_feature.name))
+          f'Row length feature "{row_length_feature.name}" is not an integer feature.'
+      )
   return value_feature
 
 
@@ -427,17 +425,16 @@ def _sparse_feature_as_feature_spec(feature, feature_by_name, string_domains):
       index_features.append(feature_by_name.pop(index_key))
     except KeyError:
       raise ValueError(
-          'sparse_feature "{}" referred to index feature "{}" which did not '
-          'exist in the schema'.format(feature.name, index_key))
+          f'sparse_feature "{feature.name}" referred to index feature "{index_key}" which did not exist in the schema'
+      )
 
   value_key = feature.value_feature.name
   try:
     value_feature = feature_by_name.pop(value_key)
   except KeyError:
     raise ValueError(
-        'sparse_feature "{}" referred to value feature "{}" which did not '
-        'exist in the schema or was referred to as an index or value multiple '
-        'times.'.format(feature.name, value_key))
+        f'sparse_feature "{feature.name}" referred to value feature "{value_key}" which did not exist in the schema or was referred to as an index or value multiple times.'
+    )
 
   shape = []
   for index_feature, index_key in zip(index_features, index_keys):
@@ -445,33 +442,31 @@ def _sparse_feature_as_feature_spec(feature, feature_by_name, string_domains):
       # Currently we only handle O-based INT index features whose minimum
       # domain value must be zero.
       if not index_feature.int_domain.HasField('min'):
-        raise ValueError('Cannot determine dense shape of sparse feature '
-                         '"{}". The minimum domain value of index feature "{}"'
-                         ' is not set.'.format(feature.name, index_key))
+        raise ValueError(
+            f'Cannot determine dense shape of sparse feature "{feature.name}". The minimum domain value of index feature "{index_key}" is not set.'
+        )
       if index_feature.int_domain.min != 0:
-        raise ValueError('Only 0-based index features are supported. Sparse '
-                         'feature "{}" has index feature "{}" whose minimum '
-                         'domain value is {}.'.format(
-                             feature.name, index_key,
-                             index_feature.int_domain.min))
+        raise ValueError(
+            f'Only 0-based index features are supported. Sparse feature "{feature.name}" has index feature "{index_key}" whose minimum domain value is {index_feature.int_domain.min}.'
+        )
 
       if not index_feature.int_domain.HasField('max'):
-        raise ValueError('Cannot determine dense shape of sparse feature '
-                         '"{}". The maximum domain value of index feature "{}"'
-                         ' is not set.'.format(feature.name, index_key))
+        raise ValueError(
+            f'Cannot determine dense shape of sparse feature "{feature.name}". The maximum domain value of index feature "{index_key}" is not set.'
+        )
       shape.append(index_feature.int_domain.max + 1)
     elif len(index_keys) == 1:
-      raise ValueError('Cannot determine dense shape of sparse feature "{}".'
-                       ' The index feature "{}" had no int_domain set.'.format(
-                           feature.name, index_key))
+      raise ValueError(
+          f'Cannot determine dense shape of sparse feature "{feature.name}". The index feature "{index_key}" had no int_domain set.'
+      )
     else:
       shape.append(-1)
 
   dtype = _feature_dtype(value_feature)
   if len(index_keys) != len(shape):
     raise ValueError(
-        'sparse_feature "{}" had rank {} (shape {}) but {} index keys were'
-        ' given'.format(feature.name, len(shape), shape, len(index_keys)))
+        f'sparse_feature "{feature.name}" had rank {len(shape)} (shape {shape}) but {len(index_keys)} index keys were given'
+    )
   spec = tf.io.SparseFeature(index_keys, value_key, dtype, shape,
                              feature.is_sorted)
   domain = _get_domain(value_feature, string_domains)
@@ -484,9 +479,8 @@ def _feature_as_feature_spec(feature, string_domains):
   if feature.HasField('shape'):
     if feature.presence.min_fraction != 1:
       raise ValueError(
-          'Feature "{}" had shape {} set but min_fraction {} != 1.  Use'
-          ' value_count not shape field when min_fraction != 1.'.format(
-              feature.name, feature.shape, feature.presence.min_fraction))
+          f'Feature "{feature.name}" had shape {feature.shape} set but min_fraction {feature.presence.min_fraction} != 1.  Use value_count not shape field when min_fraction != 1.'
+      )
     spec = tf.io.FixedLenFeature(
         _fixed_shape_as_tf_shape(feature.shape), dtype, default_value=None)
   else:
@@ -504,8 +498,9 @@ def _feature_dtype(feature):
   elif feature.type == schema_pb2.FLOAT:
     return tf.float32
   else:
-    raise ValueError('Feature "{}" had invalid type {}'.format(
-        feature.name, schema_pb2.FeatureType.Name(feature.type)))
+    raise ValueError(
+        f'Feature "{feature.name}" had invalid type {schema_pb2.FeatureType.Name(feature.type)}'
+    )
 
 
 def _fixed_shape_as_tf_shape(fixed_shape):
@@ -560,9 +555,8 @@ def _legacy_schema_from_feature_spec(feature_spec, domains=None):
         expected_default_value = ['' if spec.dtype == tf.string else -1] * size
       else:
         raise ValueError(
-            'When inferring legacy schema from feature spec, feature "{}" had '
-            'shape {}, but FixedLenFeature must have shape [] or [k] where '
-            'k > 1.'.format(name, spec.shape))
+            f'When inferring legacy schema from feature spec, feature "{name}" had shape {spec.shape}, but FixedLenFeature must have shape [] or [k] where k > 1.'
+        )
 
       if spec.default_value is None:
         min_fraction = 1
@@ -570,10 +564,8 @@ def _legacy_schema_from_feature_spec(feature_spec, domains=None):
         min_fraction = 0
       else:
         raise ValueError(
-            'When inferring legacy schema from feature spec, feature "{}" had '
-            'default_value {}, but FixedLenFeature must have '
-            'default_value=None or {}'.format(name, spec.default_value,
-                                              expected_default_value))
+            f'When inferring legacy schema from feature spec, feature "{name}" had default_value {spec.default_value}, but FixedLenFeature must have default_value=None or {expected_default_value}'
+        )
 
       feature = result.feature.add(
           name=name,
@@ -583,9 +575,8 @@ def _legacy_schema_from_feature_spec(feature_spec, domains=None):
       feature = result.feature.add(name=name)
     else:
       raise TypeError(
-          'When inferring legacy schema from feature spec, spec for feature '
-          '"{}" was {} of type {}, expected a FixedLenFeature or '
-          'VarLenFeature '.format(name, spec, type(spec)))
+          f'When inferring legacy schema from feature spec, spec for feature "{name}" was {spec} of type {type(spec)}, expected a FixedLenFeature or VarLenFeature '
+      )
 
     _set_type(name, feature, spec.dtype)
     _set_domain(name, feature, domains.get(name))
@@ -660,13 +651,13 @@ def _legacy_feature_as_feature_spec(feature):
 
   if feature.value_count.min < 0:
     raise ValueError(
-        'Feature "{}" has value_count.min < 0 (value was {}).'.format(
-            feature.name, feature.value_count.min))
+        f'Feature "{feature.name}" has value_count.min < 0 (value was {feature.value_count.min}).'
+    )
 
   if feature.value_count.max < 0:
     raise ValueError(
-        'Feature "{}" has value_count.max < 0 (value was {}).'.format(
-            feature.name, feature.value_count.max))
+        f'Feature "{feature.name}" has value_count.max < 0 (value was {feature.value_count.max}).'
+    )
 
   # Use heuristics to infer the shape and representation.
   if (feature.value_count.min == feature.value_count.max and
